@@ -1,0 +1,2 @@
+# trapKiller
+smart contract checker
