@@ -42,7 +42,7 @@ def construct_cfg():
     global blocks
     global edges
     global op_list
-    with open('SPRun2.opcodes', 'r') as disasm_file:
+    with open('./opcodes/STP.opcodes', 'r') as disasm_file:
         while True:
             line = disasm_file.readline()
             if not line:
@@ -54,13 +54,13 @@ def construct_cfg():
             pc = int(pc)
             end_pc = pc
             opcode = str_list[1].strip()
-            if opcode == "opcode":
+            if opcode == "Missing":
                 opcode = "INVALID"
             if opcode == "KECCAK256":
                 opcode = "SHA3"
             op_dict[pc] = opcode
             if len(str_list) > 2:
-                str_value = str_list[2].strip()
+                str_value = str_list[-1].strip()
                 value = int(str_value, 16)
                 value_dict[pc] = value
 
@@ -442,10 +442,16 @@ def check_StorageOperation(tag):
             return 1
 
 def check_SSP():
+    for block in blocks:
+        graph_dict[block.get_start_address()] = set()
+        for i in edges:
+            if list(i.keys())[0] == block.get_start_address():
+                graph_dict[block.get_start_address()].add(list(i.values())[0])
     for i, block in enumerate(blocks):
         if check_Pre(block.get_start_address()) == 1:
             if check_StorageOperation(block.get_jump_to()) == 1:
                 print ("SSP pattern found!")
+                break
 
 def check_Selfdestruct(tag):
     potential_path = set()
@@ -466,15 +472,11 @@ def check_Selfdestruct(tag):
                 return 1
 
 def check_SP():
-    for block in blocks:
-        graph_dict[block.get_start_address()] = set()
-        for i in edges:
-            if list(i.keys())[0] == block.get_start_address():
-                graph_dict[block.get_start_address()].add(list(i.values())[0])
     for i, block in enumerate(blocks):
         if check_Pre(block.get_start_address()) == 1:
             if check_Selfdestruct(block.get_start_address()) == 1:
                 print("SP pattern found!")
+                break
 
 
 def visual_graph():
@@ -487,6 +489,32 @@ def visual_graph():
             G.add_edge(frome,edge[frome])
     nx.draw(G, with_labels=True, arrows = True, arrowstyle="->")
     plt.show()
+
+def check_Transfer(tag):
+    potential_path = set()
+    s = [tag]
+    while s:        # dfs
+        vertex = s.pop()   
+        if vertex not in potential_path:
+            potential_path.add(vertex)
+            s.extend(graph_dict[vertex] - potential_path)
+    potential_path.remove(tag)
+    for k in potential_path:
+        block_k = get_block(k)
+        block_k_index = block_k.get_instructions()
+        temp = [op_dict[i] for i in block_k_index]
+        for i in block_k_index:
+            if op_dict[i] in ['CALL', 'CALLCODE', 'DELEGATECALL']:
+                continue
+            else:
+                return 1
+
+def check_STP():
+    for i, block in enumerate(blocks):
+        if check_Pre(block.get_start_address()) == 1:
+            if check_Transfer(block.get_start_address()) == 1:
+                print("STP pattern found!")
+                break
 
 
 def numTohexlst(num):
@@ -519,5 +547,6 @@ stack = []
 construct_cfg()
 symbolic_exec(0,stack)
 check_SSP()
+check_STP()
 check_SP()
 visual_graph()
