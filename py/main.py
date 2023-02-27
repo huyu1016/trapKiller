@@ -27,6 +27,8 @@ memory = ['0' for i in range(64)]
 
 storage = {}
 
+graph_dict = {}
+
 pc = 0
 
 count = 0
@@ -40,15 +42,16 @@ def construct_cfg():
     global blocks
     global edges
     global op_list
-    with open('../opcodes/SSPRun.opcodes', 'r') as disasm_file:
+    with open('SPRun2.opcodes', 'r') as disasm_file:
         while True:
             line = disasm_file.readline()
             if not line:
-                break;
+                break
             str_list = line.split(' ')
             str_pc = str_list[0]
             pc = str_pc.replace(":", "", 1)
-            pc = int(pc, 16)
+            # pc = int(pc, 16)
+            pc = int(pc)
             end_pc = pc
             opcode = str_list[1].strip()
             if opcode == "opcode":
@@ -354,7 +357,10 @@ def symbolic_exec(tag,stack):
         #         value = hexlstTonum(value_hex)
         #         stack.insert(0, value)
         #         ins = ins + 1
-
+        elif op_code == "SELFDESTRUCT":
+            if len(stack) > 0:
+                addr = stack.pop(0)
+                ins = ins + 1
         elif op_code == "SSTORE":
             if len(stack) > 1:
                 key = stack.pop(0)
@@ -433,13 +439,43 @@ def check_StorageOperation(tag):
         if op_code != "SSTORE":
             continue
         else:
-            return  1
+            return 1
 
 def check_SSP():
     for i, block in enumerate(blocks):
         if check_Pre(block.get_start_address()) == 1:
             if check_StorageOperation(block.get_jump_to()) == 1:
                 print ("SSP pattern found!")
+
+def check_Selfdestruct(tag):
+    potential_path = set()
+    s = [tag]
+    while s:        # dfs
+        vertex = s.pop()   
+        if vertex not in potential_path:
+            potential_path.add(vertex)
+            s.extend(graph_dict[vertex] - potential_path)
+    potential_path.remove(tag)
+    for k in potential_path:
+        block_k = get_block(k)
+        block_k_index = block_k.get_instructions()
+        for i in block_k_index:
+            if op_dict[i] != "SELFDESTRUCT":
+                continue
+            else:
+                return 1
+
+def check_SP():
+    for block in blocks:
+        graph_dict[block.get_start_address()] = set()
+        for i in edges:
+            if list(i.keys())[0] == block.get_start_address():
+                graph_dict[block.get_start_address()].add(list(i.values())[0])
+    for i, block in enumerate(blocks):
+        if check_Pre(block.get_start_address()) == 1:
+            if check_Selfdestruct(block.get_start_address()) == 1:
+                print("SP pattern found!")
+
 
 def visual_graph():
     G = nx.Graph()
@@ -449,12 +485,39 @@ def visual_graph():
     for j,edge in enumerate(edges):
         for frome in edge:
             G.add_edge(frome,edge[frome])
-    nx.draw(G, with_labels=True)
+    nx.draw(G, with_labels=True, arrows = True, arrowstyle="->")
     plt.show()
+
+
+def numTohexlst(num):
+    str = ''
+    while num > 0:
+        str='0123456789ABCDEF'[num%16]+str
+        num=(num-num%16)//16
+    l = ['0' for i in range(64-len(str))]
+    l += list(str)
+    return l
+
+def hexlstTonum(t):
+    s = ''
+    for i in t:
+        s += i
+    odata = 0
+    su =s.upper()
+    for c in su:
+        tmp=ord(c)
+        if tmp <= ord('9') :
+            odata = odata << 4
+            odata += tmp - ord('0')
+        elif ord('A') <= tmp <= ord('F'):
+            odata = odata << 4
+            odata += tmp - ord('A') + 10
+    return odata
 
 
 stack = []
 construct_cfg()
 symbolic_exec(0,stack)
 check_SSP()
+check_SP()
 visual_graph()
