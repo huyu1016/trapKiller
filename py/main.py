@@ -42,7 +42,7 @@ def construct_cfg():
     global blocks
     global edges
     global op_list
-    with open('./opcodes/STP.opcodes', 'r') as disasm_file:
+    with open('./opcodes/op_mem.opcodes', 'r') as disasm_file:
         while True:
             line = disasm_file.readline()
             if not line:
@@ -152,11 +152,11 @@ def symbolic_exec(tag,stack):
             str = re.search(r"\d+", op_code).group(0)
             length = int(str)
             ins = ins + length + 1
-        elif op_code == "MSTORE":
-            if len(stack) > 1:
-                stack.pop(0)
-                stack.pop(0)
-                ins = ins + 1
+        # elif op_code == "MSTORE":
+        #     if len(stack) > 1:
+        #         stack.pop(0)
+        #         stack.pop(0)
+        #         ins = ins + 1
         elif op_code == "CALLDATASIZE":
             stack.insert(0,20)
             ins = ins + 1
@@ -225,12 +225,12 @@ def symbolic_exec(tag,stack):
                 stack[num] = stack[0]
                 stack[0] = temp
                 ins = ins + 1
-        elif op_code == "MLOAD":
-            if len(stack) > 0:
-                offset = stack.pop(0)
-                value = 20
-                stack.insert(0, value)
-                ins = ins + 1
+        # elif op_code == "MLOAD":
+        #     if len(stack) > 0:
+        #         offset = stack.pop(0)
+        #         value = 20
+        #         stack.insert(0, value)
+        #         ins = ins + 1
         elif op_code == "SHR":
             if len(stack) > 1:
                 shift = stack.pop(0)
@@ -333,30 +333,28 @@ def symbolic_exec(tag,stack):
             ins = ins + 1
         elif op_code == "INVALID":
             ins = ins + 1
-        # elif op_code == "MSTORE":
-        #     if len(stack) > 1:
-        #         offset = stack.pop(0)
-        #         value = stack.pop(0)
-        #         value_hex = numTohexlst(value)
-        #         # 将value_hex转为str，并且补全至64位，高位补0，转list
-        #         # memory[offset:offset+32] = value
-        #         for i in range(offset * 2, offset * 2 + 64):
-        #             if i < len(memory):
-        #                 memory[i] = value_hex[i - offset * 2]
-        #             else:
-        #                 memory.append(value_hex[i - offset * 2])
-        #
-        #         for i in range((len(memory) // 64 + 1) * 64 - len(memory)):
-        #             memory.append('0')
-        #         ins = ins + 1
-        #
-        # elif op_code == "MLOAD":
-        #     if len(stack) > 0:
-        #         offset = stack.pop(0)
-        #         value_hex = memory[offset * 2:offset * 2 + 64]
-        #         value = hexlstTonum(value_hex)
-        #         stack.insert(0, value)
-        #         ins = ins + 1
+        elif op_code == "MSTORE":
+            if len(stack) > 1:
+                offset = stack.pop(0)
+                value = stack.pop(0)
+                value_hex = numTohexlst(value)
+                # 将value_hex转为str，并且补全至64位，高位补0，转list
+                # memory[offset:offset+32] = value
+                for i in range(offset * 2, offset * 2 + 64):
+                    if i < len(memory):
+                        memory[i] = value_hex[i - offset * 2]
+                    else:
+                        memory.append(value_hex[i - offset * 2])
+                for i in range(math.ceil(len(memory)/64) * 64 - len(memory)):
+                    memory.append('0')
+                ins = ins + 1
+        elif op_code == "MLOAD":
+            if len(stack) > 0:
+                offset = stack.pop(0)
+                value_hex = memory[offset * 2:offset * 2 + 64]
+                value = hexlstTonum(value_hex)
+                stack.insert(0, value)
+                ins = ins + 1
         elif op_code == "SELFDESTRUCT":
             if len(stack) > 0:
                 addr = stack.pop(0)
@@ -502,7 +500,6 @@ def check_Transfer(tag):
     for k in potential_path:
         block_k = get_block(k)
         block_k_index = block_k.get_instructions()
-        temp = [op_dict[i] for i in block_k_index]
         for i in block_k_index:
             if op_dict[i] in ['CALL', 'CALLCODE', 'DELEGATECALL']:
                 continue
