@@ -415,17 +415,46 @@ def symbolic_exec(tag,stack):
     print(edges)
 
 
-#检测该块是否是涉及到owner检测的
+#检测该块是否是涉及到owner的权限控制
 def check_Pre(tag):
     block = get_block(tag)
     insList = block.get_instructions()
     length = len(insList)
+    #权限控制
+    check_cond = {}
+    check_cond["SLOAD"] = False
+    check_cond["CALLER"] = False
+    check_cond["EQ"] = False
+    check_cond["JUMPI"] = False
+
     for i, ins in enumerate(insList):
         op_code = op_dict[ins]
-        if op_code == "CALLER" and i + 3 < length and op_dict[insList[i+3]] == "EQ":
-            return 1
+        if op_code == "SLOAD":
+            check_cond["SLOAD"] = True
+        elif op_code == "CALLER":
+            check_cond["CALLER"] = True
+        elif op_code == "EQ":
+            check_cond["EQ"] = True
+        elif op_code == "JUMPI":
+            check_cond["JUMPI"] = True
         else:
             continue
+
+    for v in check_cond.values():
+        if not v:
+            return 0
+        continue
+    return 1
+
+def check_transfer_nowblock(tag):
+    block = get_block(tag)
+    insList = block.get_instructions()
+    length = len(insList)
+    for i, ins in enumerate(insList):
+        if op_dict[ins] in ['CALL', 'CALLCODE', 'DELEGATECALL']:
+            return 1
+        else:
+            return 0
 
 #检测该块是否涉及内存操作
 def check_StorageOperation(tag):
@@ -476,6 +505,11 @@ def check_SP():
                 print("SP pattern found!")
                 break
 
+def check_TS():
+    for i, block in enumerate(blocks):
+        if check_transfer_nowblock(block.get_start_address()) == 1:
+               if check_StorageOperation(block.get_jump_to()) == 1: 
+                   print("TS pattern found!")
 
 def visual_graph():
     G = nx.Graph()
