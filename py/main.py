@@ -44,7 +44,7 @@ def construct_cfg():
     global edges
     global op_list
     move_firstLine = False
-    with open('./opcodes-runtime/TS.opcodes-runtime', 'r') as disasm_file:
+    with open('./opcodes-runtime/SP.opcodes-runtime', 'r') as disasm_file:
         while True:
             line = disasm_file.readline()
             if not move_firstLine:
@@ -441,28 +441,37 @@ def check_Pre(tag):
     length = len(insList)
     #权限控制
     check_cond = {}
-    check_cond["SLOAD"] = False
-    check_cond["CALLER"] = False
-    check_cond["EQ"] = False
-    check_cond["JUMPI"] = False
+    check_cond["SLOAD"] = -1
+    check_cond["CALLER"] = -1
+    check_cond["EQ"] = -1
+    check_cond["JUMPI"] = -1
 
     for i, ins in enumerate(insList):
         op_code = op_dict[ins]
         if op_code == "SLOAD":
-            check_cond["SLOAD"] = True
+            check_cond["SLOAD"] = i
         elif op_code == "CALLER":
-            check_cond["CALLER"] = True
+            check_cond["CALLER"] = i
         elif op_code == "EQ":
-            check_cond["EQ"] = True
+            check_cond["EQ"] = i
         elif op_code == "JUMPI":
-            check_cond["JUMPI"] = True
+            check_cond["JUMPI"] = i
         else:
             continue
 
     for v in check_cond.values():
-        if not v:
+        if v == -1:
             return 0
         continue
+
+    check_seq = ["SLOAD","CALLER","EQ","JUMPI"]
+
+    for seq, op_code in enumerate(check_seq):
+        follow = seq + 1
+        while(follow < check_cond.__len__() - 1):
+            if check_cond[check_seq[seq]] >= check_cond[check_seq[follow]]:
+                return 0
+            follow = follow + 1
     return 1
 
 def check_TransferAndStore(tag):
@@ -610,8 +619,8 @@ stack = []
 construct_cfg()
 symbolic_exec(0,stack)
 initDfs_graph()
-# check_SSP()
+check_SSP()
 #check_STP()
 # check_SP()
-check_TS()
+# check_TS()
 visual_graph()
