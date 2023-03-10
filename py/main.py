@@ -1,4 +1,5 @@
 import re
+import os
 import networkx as nx
 import math
 import matplotlib.pyplot as plt
@@ -42,24 +43,31 @@ def construct_cfg():
     global blocks
     global edges
     global op_list
-    with open('./opcodes/op_mem.opcodes', 'r') as disasm_file:
+    move_firstLine = False
+    with open('./opcodes-runtime/TS.opcodes-runtime', 'r') as disasm_file:
         while True:
             line = disasm_file.readline()
+            if not move_firstLine:
+                move_firstLine = True
+                continue  
             if not line:
                 break
             str_list = line.split(' ')
             str_pc = str_list[0]
             pc = str_pc.replace(":", "", 1)
-            # pc = int(pc, 16)
-            pc = int(pc)
-            end_pc = pc
+            pc = int(pc, 16)
+            #pc = int(pc)
             opcode = str_list[1].strip()
+
             if opcode == "Missing":
                 opcode = "INVALID"
             if opcode == "KECCAK256":
                 opcode = "SHA3"
+            if opcode == "opcode":
+                opcode = "INVALID"
+
             op_dict[pc] = opcode
-            if len(str_list) > 2:
+            if len(str_list) > 2 and opcode != "INVALID":
                 str_value = str_list[-1].strip()
                 value = int(str_value, 16)
                 value_dict[pc] = value
@@ -91,6 +99,7 @@ def construct_cfg():
                 op_ele['opcode'] = opcode
                 op_ele['depart'] = False
                 op_list.append(op_ele)
+            
         op_dp = {}
         op_dp['depart'] = True
         op_list.append(op_dp)
@@ -374,6 +383,16 @@ def symbolic_exec(tag,stack):
                 else:
                     stack.insert(0, 0)
                 ins = ins + 1
+        elif op_code == "CALL":
+            if len(stack) > 0:
+                outgas = stack.pop(0)
+                recipient = stack.pop(0)
+                transfer_amount = stack.pop(0)
+                start_data_input = stack.pop(0)
+                size_data_input = stack.pop(0)
+                start_data_output = stack.pop(0)
+                size_data_ouput = stack.pop(0)
+                stack.insert(0,1)
         elif op_code == "CALLVALUE":
             value = 1000
             stack.insert(0,value)
@@ -446,49 +465,57 @@ def check_Pre(tag):
         continue
     return 1
 
-def check_transfer_nowblock(tag):
+def check_TransferAndStore(tag):
     block = get_block(tag)
     insList = block.get_instructions()
     length = len(insList)
+    has_transfer = -1
+    has_storage = -1
     for i, ins in enumerate(insList):
         if op_dict[ins] in ['CALL', 'CALLCODE', 'DELEGATECALL']:
+            has_transfer = i
+        elif op_dict[ins] == "SSTORE":
+            has_storage = i
+    if has_storage > -1 and has_transfer > -1:
+        if has_transfer < has_storage:
+            for search, searchins in enumerate(insList):
+                if search <= has_transfer or search >= has_storage:
+                    continue
+                else:
+                    if op_dict[searchins] == "ISZERO":
+                        return 0
             return 1
         else:
             return 0
+    else:
+        return 0
+    
 
 #检测该块是否涉及内存操作
 def check_StorageOperation(tag):
-    block = get_block(tag)
-    insList = block.get_instructions()
-    length = len(insList)
-    for i, ins in enumerate(insList):
-        op_code = op_dict[ins]
-        if op_code != "SSTORE":
-            continue
-        else:
-            return 1
+    potential_path = get_potential_path(tag)
+    for k in potential_path:
+        block_k = get_block(k)
+        block_k_index = block_k.get_instructions()
+        for i in block_k_index:
+            if op_dict[i] != "SSTORE":
+                continue
+            else:
+                return 1
 
-def check_SSP():
-    for block in blocks:
-        graph_dict[block.get_start_address()] = set()
-        for i in edges:
-            if list(i.keys())[0] == block.get_start_address():
-                graph_dict[block.get_start_address()].add(list(i.values())[0])
-    for i, block in enumerate(blocks):
-        if check_Pre(block.get_start_address()) == 1:
-            if check_StorageOperation(block.get_jump_to()) == 1:
-                print ("SSP pattern found!")
-                break
+def check_Transfer(tag):
+    potential_path = get_potential_path(tag)
+    for k in potential_path:
+        block_k = get_block(k)
+        block_k_index = block_k.get_instructions()
+        for i in block_k_index:
+            if op_dict[i] in ['CALL', 'CALLCODE', 'DELEGATECALL']:
+                continue
+            else:
+                return 1
 
 def check_Selfdestruct(tag):
-    potential_path = set()
-    s = [tag]
-    while s:        # dfs
-        vertex = s.pop()   
-        if vertex not in potential_path:
-            potential_path.add(vertex)
-            s.extend(graph_dict[vertex] - potential_path)
-    potential_path.remove(tag)
+    potential_path = get_potential_path(tag)
     for k in potential_path:
         block_k = get_block(k)
         block_k_index = block_k.get_instructions()
@@ -497,6 +524,20 @@ def check_Selfdestruct(tag):
                 continue
             else:
                 return 1
+            
+def check_STP():
+    for i, block in enumerate(blocks):
+        if check_Pre(block.get_start_address()) == 1:
+            if check_Transfer(block.get_start_address()) == 1:
+                print("STP pattern found!")
+                break
+
+def check_SSP():
+   for i, block in enumerate(blocks):
+        if check_Pre(block.get_start_address()) == 1:
+            if check_StorageOperation(block.get_start_address()) == 1:
+                print("SSP pattern found!")
+                break
 
 def check_SP():
     for i, block in enumerate(blocks):
@@ -507,8 +548,7 @@ def check_SP():
 
 def check_TS():
     for i, block in enumerate(blocks):
-        if check_transfer_nowblock(block.get_start_address()) == 1:
-               if check_StorageOperation(block.get_jump_to()) == 1: 
+        if check_TransferAndStore(block.get_start_address()) == 1:
                    print("TS pattern found!")
 
 def visual_graph():
@@ -521,31 +561,6 @@ def visual_graph():
             G.add_edge(frome,edge[frome])
     nx.draw(G, with_labels=True, arrows = True, arrowstyle="->")
     plt.show()
-
-def check_Transfer(tag):
-    potential_path = set()
-    s = [tag]
-    while s:        # dfs
-        vertex = s.pop()   
-        if vertex not in potential_path:
-            potential_path.add(vertex)
-            s.extend(graph_dict[vertex] - potential_path)
-    potential_path.remove(tag)
-    for k in potential_path:
-        block_k = get_block(k)
-        block_k_index = block_k.get_instructions()
-        for i in block_k_index:
-            if op_dict[i] in ['CALL', 'CALLCODE', 'DELEGATECALL']:
-                continue
-            else:
-                return 1
-
-def check_STP():
-    for i, block in enumerate(blocks):
-        if check_Pre(block.get_start_address()) == 1:
-            if check_Transfer(block.get_start_address()) == 1:
-                print("STP pattern found!")
-                break
 
 
 def numTohexlst(num):
@@ -573,11 +588,30 @@ def hexlstTonum(t):
             odata += tmp - ord('A') + 10
     return odata
 
+def initDfs_graph():
+    for block in blocks:
+        graph_dict[block.get_start_address()] = set()
+        for i in edges:
+            if list(i.keys())[0] == block.get_start_address():
+                graph_dict[block.get_start_address()].add(list(i.values())[0])
+
+def get_potential_path(tag):
+    potential_path = set()
+    s = [tag]
+    while s:       
+        vertex = s.pop()   
+        if vertex not in potential_path:
+            potential_path.add(vertex)
+            s.extend(graph_dict[vertex] - potential_path)
+    potential_path.remove(tag)
+    return potential_path
 
 stack = []
 construct_cfg()
 symbolic_exec(0,stack)
-check_SSP()
-check_STP()
-check_SP()
+initDfs_graph()
+# check_SSP()
+#check_STP()
+# check_SP()
+check_TS()
 visual_graph()

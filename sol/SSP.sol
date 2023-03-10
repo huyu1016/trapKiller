@@ -1,6 +1,6 @@
-pragma solidity ^0.8.17;
+pragma solidity ^0.4.25;
 
-contract Trap {
+contract SSP {
 
     address owner;
     uint value;

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.4.17;
+pragma solidity ^0.4.25;
 
-contract test {
+contract SP {
     address owner;
 
     constructor() public{
