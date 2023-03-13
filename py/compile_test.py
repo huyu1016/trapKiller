@@ -1,6 +1,7 @@
 import solcx
 import re
 import os
+import json
 from contract import contract
 def get_all_contracts():
     contracts = []
@@ -30,29 +31,38 @@ def get_all_contracts():
 contracts_filtered = get_all_contracts()
 for items in contracts_filtered:
     filepath = "./0/" + items.get_name() + ".sol"
-    with open(filepath, encoding='utf-8') as f:
-        source = f.readlines()
-        for i in source:
-            if i[:6] == "pragma":
-                temp = i.split()
-                for j in temp:
-                    if "^" in j or ">" in j:
-                        version = re.findall(r'[0-9]+\.[0-9]+\.[0-9]+',j)[0]
-                break
+    # with open(filepath, encoding='utf-8') as f:
+    #     source = f.readlines()
+    #     for i in source:
+    #         if i[:6] == "pragma":
+    #             temp = i.split()
+    #             for j in temp:
+    #                 if "^" in j or ">" in j:
+    #                     version = re.findall(r'[0-9]+\.[0-9]+\.[0-9]+',j)[0]
+    #             break
     res = solcx.compile_files([filepath],solc_version='0.4.25')
     mainpath = filepath+":"+items.get_main_contr()
     bin = res[mainpath]['bin']
     bin_runtime = res[mainpath]['bin-runtime']
     bin_creation = bin[:len(bin)-len(bin_runtime)]
+    ast = res[mainpath]['ast']
     bin_runtime_path = "./bin-runtime/"+ items.get_name() + ".bin-runtime"
     bin_full_path = "./bin-full/"+ items.get_name() + ".bin"
     bin_creation_path = "./bin-creation/"+ items.get_name() + ".bin-creation"
+    ast_CN_path = "./ast-CN/" + items.get_name() + ".ast-CN"
+    ast_NI_path = "./ast-NI/" + items.get_name() + ".ast-NI"
     with open(bin_runtime_path, 'w') as f:
         f.write(bin_runtime)
     with open(bin_full_path, 'w') as f:
         f.write(bin)
     with open(bin_creation_path, 'w') as f:
         f.write(bin_creation)
+    with open(ast_CN_path, 'w') as f:
+        contractName2nodeId = json.dumps(ast['exportedSymbols'])
+        f.write(contractName2nodeId)
+    with open(ast_NI_path, 'w') as f:
+        nodesInfo = json.dumps(ast['nodes'])
+        f.write(nodesInfo)
 def WriteFiles(ipath,opath):
     command = "evmasm -d -i " + ipath + " -o " + opath
     os.system(command)
