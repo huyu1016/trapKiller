@@ -62,6 +62,8 @@ class contract:
 
         self.STP = False
 
+        self.TS = False
+
         #preprocess
         self.process()
         #check
@@ -315,6 +317,9 @@ class contract:
                     res = cal.compute_ISZERO(value)
                     stack.insert(0, res)
                     ins = ins + 1
+                    check_unit = CheckUnit(op_code,ins)
+                    check_unit.set_iszero(value)
+                    block.add_checkUnit(check_unit)
             elif op_code == "SLT":
                 left = stack.pop(0)
                 right = stack.pop(0)
@@ -422,6 +427,9 @@ class contract:
                     size_data_input = stack.pop(0)
                     start_data_output = stack.pop(0)
                     size_data_ouput = stack.pop(0)
+                    check_unit = CheckUnit(op_code,ins)
+                    check_unit.set_call_return("0x1")
+                    block.add_checkUnit(check_unit)
                     stack.insert(0,"0x1")
             elif op_code == "CALLVALUE":
                 stack.insert(0,"0x0")
@@ -498,11 +506,12 @@ class contract:
             for i, block_r in enumerate(self.blocks_r):
                 if not self.check_privilege(block_r):
                     continue
-                self.check_SSP(block_r)
+                self.check_SSP(block_r,True)
                 self.check_SP(block_r)
                 self.check_STP(block_r)
         else:
-            print("not check pre")
+            self.check_TS()
+
             
     # check if there is an owner = msg.sender operation in creation bytecode
     def check_pre(self):
@@ -585,8 +594,10 @@ class contract:
                         return True
         return False
         
-    def check_SSP(self,block):
+    def check_SSP(self,block,SSPtag):
         potential_path = self.get_potential_path(block.get_start_address())
+        if not SSPtag:
+            potential_path.add(block.get_start_address())
         for k in potential_path:
             block_k = self.get_block(k,False)
             block_k_index = block_k.get_instructions()
@@ -594,9 +605,10 @@ class contract:
                 if self.op_dict_r[i] != "SSTORE":
                     continue
                 else:
-                    self.SSP = True
+                    if SSPtag:
+                        self.SSP = True
                     return True
-            return False
+        return False
     
     def check_STP(self,block):
         potential_path = self.get_potential_path(block.get_start_address())
@@ -623,6 +635,23 @@ class contract:
                     self.SP = True
                     return True       
         return False
+
+    def check_TS(self):
+        for i, block_r in enumerate(self.blocks_r):
+            insList = block_r.get_instructions()
+            for j, ins in enumerate(insList):
+                op_code = self.op_dict_r[ins]
+                if op_code != "CALL":
+                    continue
+                k = j + 6
+                op_code_a = self.op_dict_r[insList[k]]
+                if op_code_a != "ISZERO":
+                    if self.check_SSP(block_r,False):
+                        self.TS = True
+                        return True
+                else:
+                    return False
+        return False
     
     def initDfs_graph(self):
         for block in self.blocks_r:
@@ -648,6 +677,7 @@ class contract:
         print("SP>>>>>>>",self.SP)
         print("SSP>>>>>>",self.SSP)
         print("STP>>>>>>",self.STP)
+        print("TS>>>>>>",self.TS)
 
     # print check units
     def print_checkunits(self):
@@ -661,7 +691,8 @@ class contract:
                 check_unit_r.print_data()
 
 
-contract1 = contract("STP")
+contract1 = contract("TS1")
 
 # contract1.visual_graph_c()
-# contract1.visual_graph_r()
+contract1.visual_graph_r()
+ 
