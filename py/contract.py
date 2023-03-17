@@ -608,7 +608,7 @@ class contract:
                     self.STP = True
                     return True
                 else:
-                    return False 
+                    continue
         return False
     
     def check_SP(self,block):
@@ -641,6 +641,7 @@ class contract:
                 potential_path.add(vertex)
                 s.extend(self.graph_dict[vertex] - potential_path)
         potential_path.remove(tag)
+
         return potential_path
 
     def print_check_msg(self):
@@ -663,4 +664,4 @@ class contract:
 contract1 = contract("STP")
 
 # contract1.visual_graph_c()
-contract1.visual_graph_r()
+# contract1.visual_graph_r()
