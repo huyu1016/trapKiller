@@ -1,6 +1,6 @@
-======0x0a5155ad298ccfd1610a00ed75457eb2d8b0c701,Oasis=======Y
-Tricky Send: true
-Super Storage Permission: false
-Super Transfer Permission: false
-Self Destruct Permission: false
-Forged Transfer: false
+======0xe1c00a2944b2155b66a7de490c10c69e564869fd,Epiphany======= Y
+Tricky Send: false Y
+Super Storage Permission: true Y
+Super Transfer Permission: false Y
+Self Destruct Permission: false Y
+Forged Transfer: false Y

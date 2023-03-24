@@ -43,6 +43,7 @@ SP_evaluate_FN = 0
 
 
 def processLabel():
+    # with open("./labeledCorrect.txt", encoding='utf-8') as f:
     with open("./labeled.txt", encoding='utf-8') as f:
         contents = f.readlines()
         begin = 0
@@ -200,11 +201,12 @@ def handleLabel():
         
         contract_sum = contract_sum + 1
 
-        handleFlagTS(labelUnit.getLabelTS(),contract_anlysis.get_TS(),labelUnit.getMainContractName())
-        handleFlagSSP(labelUnit.getLabelSSP(),contract_anlysis.get_SSP(),labelUnit.getMainContractName())
-        handleFlagSTP(labelUnit.getLabelSTP(),contract_anlysis.get_STP(),labelUnit.getMainContractName())
-        handleFlagSP(labelUnit.getLabelSP(),contract_anlysis.get_SP(),labelUnit.getMainContractName())
+        handleFlagTS(labelUnit.getLabelTS(),contract_anlysis.get_TS(),labelUnit.getFileName())
+        handleFlagSSP(labelUnit.getLabelSSP(),contract_anlysis.get_SSP(),labelUnit.getFileName())
+        handleFlagSTP(labelUnit.getLabelSTP(),contract_anlysis.get_STP(),labelUnit.getFileName())
+        handleFlagSP(labelUnit.getLabelSP(),contract_anlysis.get_SP(),labelUnit.getFileName())
 
+        # contract_anlysis.visual_graph_r()
         contract_anlysis.__del__()
 
 
@@ -345,6 +347,7 @@ def write_msg(msg):
         f.write(msg)
         f.write('\n')
         f.close()
+        
 def run():
 
     start = time.time()
@@ -364,3 +367,4 @@ def run():
     print(f"running time: {end - start} s")
 
 cleanAll()
+# run()

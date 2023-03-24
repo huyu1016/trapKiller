@@ -82,7 +82,8 @@ class contract:
             #check
             self.check()
         except:
-            self.write_msg("error   " + self.name)
+            self.write_msg("error  "+ self.name)
+    
 
     def process(self):
         c_path = creation_path + self.name + creation_postfix
@@ -629,8 +630,7 @@ class contract:
                 self.check_SSP(block_r,True)
                 self.check_SP(block_r)
                 self.check_STP(block_r)
-        else:
-            self.check_TS()
+        self.check_TS()
 
             
     # check if there is an owner = msg.sender operation in creation bytecode
