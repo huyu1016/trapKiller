@@ -37,7 +37,66 @@ def compute(operator,*args):
         return compute_ISZERO(args[0])
     elif operator == "SLT":
         return compute_SLT(args[0],args[1])
+    elif operator == "SLT":
+        return compute_SLT(args[0],args[1])
+    elif operator == "MOD":
+        return compute_MOD(args[0],args[1])
+    elif operator == "XOR":
+        return compute_XOR(args[0],args[1])
+    elif operator == "BYTE":
+        return compute_BYTE(args[0],args[1])
+    elif operator == "SDIV":
+        return compute_SDIV(args[0],args[1])
+    elif operator == "SGT":
+        return compute_SGT(args[0],args[1])
     
+
+def compute_SGT(a1,a2):
+    a1_c =  int(a1,16)
+    a2_c = int(a2,16)
+    if a1_c > a2_c:
+        res_c = 1
+    else:
+        res_c = 0
+    return hex(res_c)
+
+    
+def compute_SDIV(a1,a2):
+    a1_c =  int(a1,16)
+    a2_c = int(a2,16)
+    if a2_c == 0:
+        res_c = 0
+    elif a1_c == -2**255 and a2_c == -1:
+        res_c = -2**255
+    else:
+        sign = -1 if (a1_c / a1_c) < 0 else 1
+        res_c = sign * ( abs(a1_c) / abs(a2_c) )
+    return hex(res_c)
+
+def compute_BYTE(a1,a2):
+    a1_c =  int(a1,16)
+    if a1_c >= 32 or a1_c < 0:
+        return hex(0)
+    a2_c = int(a2,16)
+    res_c = a2_c & (255 << (8 * a1_c))
+    res_c = res_c >> (8 * a1_c)
+    return hex(res_c)
+
+def compute_XOR(a1,a2):
+    a1_c =  int(a1,16)
+    a2_c = int(a2,16)
+    res_c = a1_c ^ a2_c 
+    return hex(res_c)
+
+
+def compute_MOD(a1,a2):
+    a1_c =  int(a1,16)
+    a2_c = int(a2,16)
+    if a2_c == 0:
+        return hex(0)
+    res_c = a1_c % a2_c & UNSIGNED_BOUND_NUMBER
+    return hex(res_c)
+
 
 def compute_ADD(a1,a2):
     a1_c =  int(a1,16)

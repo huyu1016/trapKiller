@@ -1,626 +1,366 @@
-import re
 import os
-import networkx as nx
-import math
-import matplotlib.pyplot as plt
+import re
+import time
+import shutil
+from label import Label
+from contract import contract
 
-from baseBlock import BasicBlock
+labels = []
+solFilePath = "./dataset/"
+binProcess = "./process/"
+bin_full = "./bin-full/"
+bin_run = "./bin-runtime/"
+bin_creation = "./bin-creation/"
 
-op_dict = {}
+opcodes_runtime = "./opcodes-runtime/"
+opcodes_creation = "./opcodes-creation/"
 
-cut = []
+contract_sum = 0
 
-op_list = []
+SSP_label_sum = 0
+SSP_evaluate_TP = 0
+SSP_evaluate_TN = 0
+SSP_evaluate_FP = 0
+SSP_evaluate_FN = 0
 
-cut_type = {}
+TS_label_sum = 0
+TS_evaluate_TP = 0
+TS_evaluate_TN = 0
+TS_evaluate_FP = 0
+TS_evaluate_FN = 0
 
-value_dict = {}
+STP_label_sum = 0
+STP_evaluate_TP = 0
+STP_evaluate_TN = 0
+STP_evaluate_FP = 0
+STP_evaluate_FN = 0
 
-blocks = []
+SP_label_sum = 0
+SP_evaluate_TP = 0
+SP_evaluate_TN = 0
+SP_evaluate_FP = 0
+SP_evaluate_FN = 0
 
-edges = []
 
-edges_sys = {}
+def processLabel():
+    with open("./labeled.txt", encoding='utf-8') as f:
+        contents = f.readlines()
+        begin = 0
+        while(begin < contents.__len__()):
 
-visited = {}
+            main_line = begin 
+            mainContent = contents[main_line].split('======')[1]
+            fileName = mainContent.split(',')[0]
+            mainContractName = mainContent.split(',')[1]
 
-memory = ['0' for i in range(64)]
+            labelUnit = Label(fileName)
+            labelUnit.setMainContractName(mainContractName)
 
-storage = {}
-
-graph_dict = {}
-
-pc = 0
-
-count = 0
-
-end_pc = 0
-def construct_cfg():
-
-    global op_dict
-    global value_dict
-    global bolck_tag
-    global blocks
-    global edges
-    global op_list
-    move_firstLine = False
-    with open('./opcodes-runtime/SP.opcodes-runtime', 'r') as disasm_file:
-        while True:
-            line = disasm_file.readline()
-            if not move_firstLine:
-                move_firstLine = True
-                continue  
-            if not line:
+            ts_line = begin + 1
+            tsFlag = False
+            tsContent = contents[ts_line].split(':')
+            if tsContent[0].strip() != "Tricky Send":
+                print("parse error>>>>",ts_line)
                 break
-            str_list = line.split(' ')
-            str_pc = str_list[0]
-            pc = str_pc.replace(":", "", 1)
-            pc = int(pc, 16)
-            #pc = int(pc)
-            opcode = str_list[1].strip()
-
-            if opcode == "Missing":
-                opcode = "INVALID"
-            if opcode == "KECCAK256":
-                opcode = "SHA3"
-            if opcode == "opcode":
-                opcode = "INVALID"
-
-            op_dict[pc] = opcode
-            if len(str_list) > 2 and opcode != "INVALID":
-                str_value = str_list[-1].strip()
-                value = int(str_value, 16)
-                value_dict[pc] = value
-
-            if opcode == "STOP" or opcode == "JUMP" or opcode == "JUMPI" or opcode == "RETURN" or opcode == "SUICIDE" or opcode == "REVERT" or opcode == "ASSERTFAIL":
-                op_ele = {}
-                op_ele['pc'] = pc
-                op_ele['opcode'] = opcode
-                op_ele['depart'] = False
-                op_list.append(op_ele)
-
-                op_dp = {}
-                op_dp['depart'] = True
-                op_list.append(op_dp)
-            elif opcode == "JUMPDEST":
-                if op_list[op_list.__len__() - 1]['depart'] == False:
-                    op_dp = {}
-                    op_dp['depart'] = True
-                    op_list.append(op_dp)
-
-                op_ele = {}
-                op_ele['pc'] = pc
-                op_ele['opcode'] = opcode
-                op_ele['depart'] = False
-                op_list.append(op_ele)
-            else:
-                op_ele = {}
-                op_ele['pc'] = pc
-                op_ele['opcode'] = opcode
-                op_ele['depart'] = False
-                op_list.append(op_ele)
+            tsFlagStr = tsContent[1].split(' ')[1].strip()
+            if tsFlagStr == "true":
+                tsFlag = True
+            elif tsFlagStr == "false":
+                tsFlag = False
+            else: 
+                print("parse error>>>>",ts_line)
+                break
             
-        op_dp = {}
-        op_dp['depart'] = True
-        op_list.append(op_dp)
+            labelUnit.setLabelTS(tsFlag)
 
-        print(op_dict)
-        print(value_dict)
-        print(op_list)
+            ssp_line = begin + 2
+            sspFlag = False
+            sspContet = contents[ssp_line].split(':')
+            if sspContet[0].strip() != "Super Storage Permission":
+                print("parse error>>>>",ssp_line)
+                break
+            sspFlagStr = sspContet[1].split(' ')[1].strip()
+            if sspFlagStr == "true":
+                sspFlag = True
+            elif sspFlagStr == "false":
+                sspFlag = False
+            else: 
+                print("parse error>>>>",ssp_line)
+                break
+            
+            labelUnit.setLabelSSP(sspFlag)
 
-        start_line = 0
-        new_block = True
+            stp_line = begin + 3
+            stpFlag = False
+            stpContet = contents[stp_line].split(':')
+            if stpContet[0].strip() != "Super Transfer Permission":
+                print("parse error>>>>",stp_line)
+                break
+            stpFlagStr = stpContet[1].split(' ')[1].strip()
+            if stpFlagStr == "true":
+                stpFlag = True
+            elif stpFlagStr == "false":
+                stpFlag = False
+            else: 
+                print("parse error>>>>",stp_line)
+                break
 
-        for i,op_ele in enumerate(op_list):
-            if new_block:
-                block = BasicBlock(start_line)
-                new_block = False
-            if not op_ele['depart']:
-                block.add_instruction(op_ele['pc'])
-                continue
-            block.set_end_address(op_list[i-1]['pc'])
-            blocks.append(block)
-            new_block = True
-            if (i+1 < op_list.__len__()):
-                start_line = op_list[i+1]['pc']
-        print(blocks)
-        for i,block in enumerate(blocks):
-            if(op_dict[block.get_end_address()] == "JUMPI"):
-                block.set_block_type("conditional")
-                continue
-            block.set_block_type("other")
-        for i, block in enumerate(blocks):
-            for j, fall_block in enumerate(blocks):
-                if(block.get_block_type() == "conditional" and fall_block.get_start_address() == block.get_end_address() + 1):
-                    block.set_fall_to(fall_block.get_start_address())
-                    edge_info = {}
-                    edge_info[block.get_start_address()] = fall_block.get_start_address()
-                    edges.append(edge_info)
-        print(edges)
-def get_block(tag):
-    for i, block in enumerate(blocks):
-        if block.get_start_address() == tag:
-            return block
-def symbolic_exec(tag,stack):
-    global edges_sys
-    global visited
-    if visited.__contains__(tag):
-        return
-    block = get_block(tag)
-    if not block:
-        return
-    visited[tag] = True
-    for i,ins in enumerate(block.get_instructions()):
-        if not op_dict.__contains__(ins):
-            ins = ins + 1
-            continue
-        op_code = op_dict[ins]
-        if op_code.startswith("PUSH"):
-            if value_dict.__contains__(ins):
-                stack.insert(0,value_dict[ins])
-            str = re.search(r"\d+", op_code).group(0)
-            length = int(str)
-            ins = ins + length + 1
-        # elif op_code == "MSTORE":
-        #     if len(stack) > 1:
-        #         stack.pop(0)
-        #         stack.pop(0)
-        #         ins = ins + 1
-        elif op_code == "CALLDATASIZE":
-            stack.insert(0,20)
-            ins = ins + 1
-        elif op_code == "CALLDATALOAD":
-            if len(stack) > 0:
-                stack.pop(0)
-                stack.insert(0, 20)
-                ins = ins + 1
-        elif op_code == "POP":
-            if len(stack) > 0:
-                stack.pop(0)
-                ins = ins + 1
-        elif op_code == "CALLER":
-            stack.insert(0,1016)
-            ins = ins + 1
-        elif op_code == "EQ":
-            if len(stack) > 1:
-                first = stack.pop(0)
-                second = stack.pop(0)
-                # if first == second:
-                #     computed = 1
-                # else:
-                #     computed = 0
-                stack.insert(0, 1)
-                ins = ins + 1
-        elif op_code.startswith("DUP"):
-            str = re.search(r"\d+", op_code).group(0)
-            num = int(str)
-            if len(stack) >= num:
-                duplicate = stack[num - 1]
-                stack.insert(0, duplicate)
-                ins = ins + 1
-        elif op_code.startswith("LOG"):
-            str = re.search(r"\d+", op_code).group(0)
-            num = int(str) + 2
-            while num > 0:
-                stack.pop(0)
-                num = num - 1
-            ins = ins + 1
-        elif op_code == "SUB":
-            if len(stack) > 1:
-                first = stack.pop(0)
-                second = stack.pop(0)
-                computed = first -second
-                stack.insert(0,computed)
-                ins = ins + 1
-        elif op_code == "ADD":
-            if len(stack) > 1:
-                first = stack.pop(0)
-                second = stack.pop(0)
-                computed = first + second
-                stack.insert(0,computed)
-                ins = ins + 1
-        elif op_code == "EXP":
-            if len(stack) > 1:
-                base = stack.pop(0)
-                up = stack.pop(0)
-                res = base ** up
-                stack.insert(0,res)
-                ins = ins + 1
-        elif op_code.startswith("SWAP"):
-            str = re.search(r"\d+", op_code).group(0)
-            num = int(str)
-            if len(stack) > num:
-                temp = stack[num]
-                stack[num] = stack[0]
-                stack[0] = temp
-                ins = ins + 1
-        # elif op_code == "MLOAD":
-        #     if len(stack) > 0:
-        #         offset = stack.pop(0)
-        #         value = 20
-        #         stack.insert(0, value)
-        #         ins = ins + 1
-        elif op_code == "SHR":
-            if len(stack) > 1:
-                shift = stack.pop(0)
-                value = stack.pop(0)
-                stack.insert(0,20)
-                # if shift > 255:
-                #     stack.insert(0, 0)
-                # else:
-                #     computed = value >> shift
-                #     stack.insert(0, computed)
-                ins = ins + 1
-        elif op_code == "REVERT":
-            if len(stack) > 1:
-                stack.pop(0)
-                stack.pop(0)
-            ins = ins + 1
-        elif op_code == "JUMP":
-            if len(stack) > 1:
-                target = stack.pop(0)
-                if not visited.__contains__(target):
-                    blockE = get_block(target)
-                    block.set_jump_to(target)
-                    edge_info = {}
-                    edge_info[block.get_start_address()] = blockE.get_start_address()
-                    edges.append(edge_info)
-                    stackNext = stack.copy()
-                    symbolic_exec(target, stackNext)
-                ins = ins + 1
-        elif op_code == "RETURN":
-            if len(stack) > 1:
-                stack.pop(0)
-                stack.pop(0)
-            ins = ins + 1
-        elif op_code == "LT":
-            if len(stack) > 1:
-                left = stack.pop(0)
-                right = stack.pop(0)
-                # if left < right:
-                #     computed = 1
-                # else:
-                #     computed = 0
-            stack.insert(0,1)
-            ins = ins + 1
-        elif op_code == "GT":
-            if len(stack) > 1:
-                left = stack.pop(0)
-                right = stack.pop(0)
-                # if left > right:
-                #     computed = 1
-                # else:
-                #     computed = 0
-            stack.insert(0, 1)
-            ins = ins + 1
-        elif op_code == "ISZERO":
-            if len(stack) > 0:
-                value = stack.pop(0)
-                if value == 0:
-                    computed = 1
-                else:
-                    computed = 0
-                stack.insert(0, computed)
-                ins = ins + 1
-        elif op_code == "SLT":
-            left = stack.pop(0)
-            right = stack.pop(0)
-            # if left < right:
-            #     computed = 1
-            # else:
-            #     computed = 0
-            stack.insert(0, 1)
-            ins = ins + 1
-        elif op_code == "MUL":
-            multiplicand = stack.pop(0)
-            multiplier = stack.pop(0)
-            res = multiplicand * multiplier
-            stack.insert(0,res)
-            ins = ins + 1
-        elif op_code == "DIV":
-            dividend = stack.pop(0)
-            divisor = stack.pop(0)
-            res = dividend / divisor
-            stack.insert(0, res)
-            ins = ins + 1
-        elif op_code == "NOT":
-            #取反 改下
-            oringinal = stack.pop(0)
-            stack.insert(0,0)
-            ins = ins + 1
-        elif op_code == "AND":
-            # 取反 改下
-            and1 = stack.pop(0)
-            and2 = stack.pop(0)
-            stack.insert(0, 0)
-            ins = ins + 1
-        elif op_code == "OR":
-            # 取反 改下
-            or1 = stack.pop(0)
-            or2 = stack.pop(0)
-            stack.insert(0, 0)
-            ins = ins + 1
-        elif op_code == "INVALID":
-            ins = ins + 1
-        elif op_code == "MSTORE":
-            if len(stack) > 1:
-                offset = stack.pop(0)
-                value = stack.pop(0)
-                value_hex = numTohexlst(value)
-                # 将value_hex转为str，并且补全至64位，高位补0，转list
-                # memory[offset:offset+32] = value
-                for i in range(offset * 2, offset * 2 + 64):
-                    if i < len(memory):
-                        memory[i] = value_hex[i - offset * 2]
-                    else:
-                        memory.append(value_hex[i - offset * 2])
-                for i in range(math.ceil(len(memory)/64) * 64 - len(memory)):
-                    memory.append('0')
-                ins = ins + 1
-        elif op_code == "MLOAD":
-            if len(stack) > 0:
-                offset = stack.pop(0)
-                value_hex = memory[offset * 2:offset * 2 + 64]
-                value = hexlstTonum(value_hex)
-                stack.insert(0, value)
-                ins = ins + 1
-        elif op_code == "SELFDESTRUCT":
-            if len(stack) > 0:
-                addr = stack.pop(0)
-                ins = ins + 1
-        elif op_code == "SSTORE":
-            if len(stack) > 1:
-                key = stack.pop(0)
-                value = stack.pop(0)
-                storage[key] = value
-                ins = ins + 1
-        elif op_code == "SLOAD":
-            if len(stack) > 0:
-                key = stack.pop(0)
-                if key in storage.keys():
-                    value = storage[key]
-                    stack.insert(0, value)
-                else:
-                    stack.insert(0, 0)
-                ins = ins + 1
-        elif op_code == "CALL":
-            if len(stack) > 0:
-                outgas = stack.pop(0)
-                recipient = stack.pop(0)
-                transfer_amount = stack.pop(0)
-                start_data_input = stack.pop(0)
-                size_data_input = stack.pop(0)
-                start_data_output = stack.pop(0)
-                size_data_ouput = stack.pop(0)
-                stack.insert(0,1)
-        elif op_code == "CALLVALUE":
-            value = 1000
-            stack.insert(0,value)
-            ins = ins + 1
-        elif op_code == "CODECOPY":
-            mem_location = stack.pop(0)
-            code_from = stack.pop(0)
-            no_bytes = stack.pop(0)
-            ins = ins + 1
-        elif op_code == "STOP":
-            ins = ins + 1
-        elif op_code == "SHA3":
-            offset = stack.pop(0)
-            size = stack.pop(0)
-            stack.insert(0, 20)
-            ins = ins + 1
-        elif op_code == "JUMPDEST":
-            ins = ins + 1
-        elif op_code == "JUMPI":
-            if len(stack) > 1:
-                target = stack.pop(0)
-                flag = stack.pop(0)
-                if not visited.__contains__(target):
-                    blockE = get_block(target)
-                    block.set_jump_to(target)
-                    edge_info = {}
-                    edge_info[block.get_start_address()] = blockE.get_start_address()
-                    edges.append(edge_info)
-                    stackNext = stack.copy()
-                    symbolic_exec(target, stackNext)
-                fall = block.get_fall_to()
-                if not visited.__contains__(fall):
-                    stackNext = stack.copy()
-                    symbolic_exec(fall,stackNext)
-            ins = ins + 1
-        else:
-            print("missing opcode!!!!>>>>",op_code)
-            ins = ins + 1
-    print(edges)
+            labelUnit.setLabelSTP(stpFlag)
 
+            sp_line = begin + 4
+            spFlag = False
+            spContet = contents[sp_line].split(':')
+            if spContet[0].strip() != "Self Destruct Permission":
+                print("parse error>>>>",sp_line)
+                break
+            spFlagStr = spContet[1].split(' ')[1].strip()
+            if spFlagStr == "true":
+                spFlag = True
+            elif spFlagStr == "false":
+                spFlag = False
+            else: 
+                print("parse error>>>>",sp_line)
+                break
 
-#检测该块是否是涉及到owner的权限控制
-def check_Pre(tag):
-    block = get_block(tag)
-    insList = block.get_instructions()
-    length = len(insList)
-    #权限控制
-    check_cond = {}
-    check_cond["SLOAD"] = -1
-    check_cond["CALLER"] = -1
-    check_cond["EQ"] = -1
-    check_cond["JUMPI"] = -1
+            labelUnit.setLabelSP(spFlag)
 
-    for i, ins in enumerate(insList):
-        op_code = op_dict[ins]
-        if op_code == "SLOAD":
-            check_cond["SLOAD"] = i
-        elif op_code == "CALLER":
-            check_cond["CALLER"] = i
-        elif op_code == "EQ":
-            check_cond["EQ"] = i
-        elif op_code == "JUMPI":
-            check_cond["JUMPI"] = i
-        else:
-            continue
+            ft_line = begin + 5
 
-    for v in check_cond.values():
-        if v == -1:
-            return 0
-        continue
+            labels.append(labelUnit)
+            
+            begin = begin + 6
+    f.close()
 
-    check_seq = ["SLOAD","CALLER","EQ","JUMPI"]
-
-    for seq, op_code in enumerate(check_seq):
-        follow = seq + 1
-        while(follow < check_cond.__len__() - 1):
-            if check_cond[check_seq[seq]] >= check_cond[check_seq[follow]]:
-                return 0
-            follow = follow + 1
-    return 1
-
-def check_TransferAndStore(tag):
-    block = get_block(tag)
-    insList = block.get_instructions()
-    length = len(insList)
-    has_transfer = -1
-    has_storage = -1
-    for i, ins in enumerate(insList):
-        if op_dict[ins] in ['CALL', 'CALLCODE', 'DELEGATECALL']:
-            has_transfer = i
-        elif op_dict[ins] == "SSTORE":
-            has_storage = i
-    if has_storage > -1 and has_transfer > -1:
-        if has_transfer < has_storage:
-            for search, searchins in enumerate(insList):
-                if search <= has_transfer or search >= has_storage:
-                    continue
-                else:
-                    if op_dict[searchins] == "ISZERO":
-                        return 0
-            return 1
-        else:
-            return 0
-    else:
-        return 0
+def handleLabel():
     
+    global contract_sum
 
-#检测该块是否涉及内存操作
-def check_StorageOperation(tag):
-    potential_path = get_potential_path(tag)
-    for k in potential_path:
-        block_k = get_block(k)
-        block_k_index = block_k.get_instructions()
-        for i in block_k_index:
-            if op_dict[i] != "SSTORE":
-                continue
-            else:
-                return 1
+    for labelUnit in labels:
 
-def check_Transfer(tag):
-    potential_path = get_potential_path(tag)
-    for k in potential_path:
-        block_k = get_block(k)
-        block_k_index = block_k.get_instructions()
-        for i in block_k_index:
-            if op_dict[i] in ['CALL', 'CALLCODE', 'DELEGATECALL']:
-                continue
-            else:
-                return 1
+        fileName = labelUnit.getFileName() + ".sol"
+        fileFullName = labelUnit.getMainContractName() + ".bin"
+        fileRunName = labelUnit.getMainContractName() + ".bin-runtime"
+        fileCreationName = labelUnit.getMainContractName() + ".bin-creation"
 
-def check_Selfdestruct(tag):
-    potential_path = get_potential_path(tag)
-    for k in potential_path:
-        block_k = get_block(k)
-        block_k_index = block_k.get_instructions()
-        for i in block_k_index:
-            if op_dict[i] != "SELFDESTRUCT":
-                continue
-            else:
-                return 1
+        opcodesRunName = labelUnit.getMainContractName() + ".opcodes-runtime"
+        opcodesCreationName = labelUnit.getMainContractName() + ".opcodes-creation"
+
+        command_full = "solc --bin " + solFilePath + fileName + " -o " + binProcess
+
+        if not os.path.isfile(solFilePath + fileName):
+            continue
+
+        os.system(command_full)
+        fileList = os.listdir(binProcess)
+        for f_name in fileList:
+            if f_name != labelUnit.getMainContractName() + ".bin":
+                os.remove(binProcess + f_name)
+        originName = binProcess + fileFullName
+
+        if os.path.isfile(bin_full + fileFullName):
+            os.remove(bin_full + fileFullName)
+
+        shutil.move(originName,bin_full)
+
+        command_run = "solc --bin-runtime " + solFilePath + fileName + " -o " + binProcess
+        os.system(command_run)
+        fileList = os.listdir(binProcess)
+        for f_name in fileList:
+            if f_name != labelUnit.getMainContractName() + ".bin-runtime":
+                os.remove(binProcess + f_name)
+        originName = binProcess + fileRunName
+
+        if os.path.isfile(bin_run + fileRunName):
+            os.remove(bin_run + fileRunName)
+
+        shutil.move(originName,bin_run)
+        
+
+        with open(bin_full + fileFullName,'r',encoding='utf-8') as f:
+            str_full = f.read()
+            f.close()
+        with open(bin_run + fileRunName,'r',encoding='utf-8') as f:   
+            str_run = f.read()
+            f.close()
+        creation = str_full[:len(str_full)-len(str_run)]
+        with open(bin_creation + fileCreationName,'w',encoding='utf-8') as f:   
+            f.write(creation)
+            f.close()
+
+
+        libraryHandel(bin_run + fileRunName)
+
+        command_evm_run = "evm disasm " + bin_run + fileRunName + " > " + opcodes_runtime + opcodesRunName
+        os.system(command_evm_run)
+        
+        command_evm_creation = "evm disasm " + bin_creation + fileCreationName + " > " + opcodes_creation + opcodesCreationName
+        os.system(command_evm_creation)
+
+        contract_anlysis = contract(labelUnit.getMainContractName())
+        
+        contract_sum = contract_sum + 1
+
+        handleFlagTS(labelUnit.getLabelTS(),contract_anlysis.get_TS(),labelUnit.getMainContractName())
+        handleFlagSSP(labelUnit.getLabelSSP(),contract_anlysis.get_SSP(),labelUnit.getMainContractName())
+        handleFlagSTP(labelUnit.getLabelSTP(),contract_anlysis.get_STP(),labelUnit.getMainContractName())
+        handleFlagSP(labelUnit.getLabelSP(),contract_anlysis.get_SP(),labelUnit.getMainContractName())
+
+        contract_anlysis.__del__()
+
+
+def libraryHandel(file_path):
+
+    with open(file_path,'r') as f:
+        str = f.read()
+        res = re.search(r'(\_\_\.).*(\_\_)',str)
+        if res:
+            res_final = str[:res.start()] + str[res.end():]
+            f.close()
+            with open(file_path,'w') as w:
+                w.write(res_final)
+                w.close()
+        else:
+            f.close()
+
+def handleFlagTS(label,contract,fileName):
+
+    global TS_label_sum
+    global TS_evaluate_FN
+    global TS_evaluate_TP
+    global TS_evaluate_FP
+    global TS_evaluate_TN
+
+    if label:
+        TS_label_sum = TS_label_sum + 1
+        if not contract:
+            write_msg(fileName + " TS>>FN")
+            TS_evaluate_FN = TS_evaluate_FN + 1
+        else:
+            TS_evaluate_TP = TS_evaluate_TP + 1
+    if not label:
+        if contract:
+            write_msg(fileName + " TS>>FP")
+            TS_evaluate_FP = TS_evaluate_FP + 1
+        else:
+            TS_evaluate_TN = TS_evaluate_TN + 1
+
+def handleFlagSSP(label,contract,fileName):
+
+    global SSP_label_sum
+    global SSP_evaluate_FN
+    global SSP_evaluate_TP
+    global SSP_evaluate_FP
+    global SSP_evaluate_TN
+
+    if label:
+        SSP_label_sum = SSP_label_sum + 1
+        if not contract:
+            write_msg(fileName + " SSP>>FN")
+            SSP_evaluate_FN = SSP_evaluate_FN + 1
+        else:
+            SSP_evaluate_TP = SSP_evaluate_TP + 1
+    if not label:
+        if contract:
+            write_msg(fileName + " SSP>>FP")
+            SSP_evaluate_FP = SSP_evaluate_FP + 1
+        else:
+            SSP_evaluate_TN = SSP_evaluate_TN + 1
+
+def handleFlagSTP(label,contract,fileName):
+
+    global STP_label_sum
+    global STP_evaluate_FN
+    global STP_evaluate_TP
+    global STP_evaluate_FP
+    global STP_evaluate_TN
+
+    if label:
+        STP_label_sum = STP_label_sum + 1
+        if not contract:
+            write_msg(fileName + " STP>>FN")
+            STP_evaluate_FN = STP_evaluate_FN + 1
+        else:
+            STP_evaluate_TP = STP_evaluate_TP + 1
+    if not label:
+        if contract:
+            write_msg(fileName + " STP>>FP")
+            STP_evaluate_FP = STP_evaluate_FP + 1
+        else:
+            STP_evaluate_TN = STP_evaluate_TN + 1
             
-def check_STP():
-    for i, block in enumerate(blocks):
-        if check_Pre(block.get_start_address()) == 1:
-            if check_Transfer(block.get_start_address()) == 1:
-                print("STP pattern found!")
-                break
+def handleFlagSP(label,contract,fileName):
 
-def check_SSP():
-   for i, block in enumerate(blocks):
-        if check_Pre(block.get_start_address()) == 1:
-            if check_StorageOperation(block.get_start_address()) == 1:
-                print("SSP pattern found!")
-                break
+    global SP_label_sum
+    global SP_evaluate_FN
+    global SP_evaluate_TP
+    global SP_evaluate_FP
+    global SP_evaluate_TN
 
-def check_SP():
-    for i, block in enumerate(blocks):
-        if check_Pre(block.get_start_address()) == 1:
-            if check_Selfdestruct(block.get_start_address()) == 1:
-                print("SP pattern found!")
-                break
+    if label:
+        SP_label_sum = SP_label_sum + 1
+        if not contract:
+            write_msg(fileName + " SP>>FN")
+            SP_evaluate_FN = SP_evaluate_FN + 1
+        else:
+            SP_evaluate_TP = SP_evaluate_TP + 1
+    if not label:
+        if contract:
+            write_msg(fileName + " SP>>FP")
+            SP_evaluate_FP = SP_evaluate_FP + 1
+        else:
+            SP_evaluate_TN = SP_evaluate_TN + 1
 
-def check_TS():
-    for i, block in enumerate(blocks):
-        if check_TransferAndStore(block.get_start_address()) == 1:
-                   print("TS pattern found!")
-
-def visual_graph():
-    G = nx.Graph()
-    for i, block in enumerate(blocks):
-        tag = block.get_start_address()
-        G.add_node(tag)
-    for j,edge in enumerate(edges):
-        for frome in edge:
-            G.add_edge(frome,edge[frome])
-    nx.draw(G, with_labels=True, arrows = True, arrowstyle="->")
-    plt.show()
+def print_res():
+    print("TS>>>",TS_label_sum,TS_evaluate_TP,TS_evaluate_TN,TS_evaluate_FP,TS_evaluate_FN)
+    print("SSP>>>",SSP_label_sum,SSP_evaluate_TP,SSP_evaluate_TN,SSP_evaluate_FP,SSP_evaluate_FN)
+    print("STP>>>",STP_label_sum,STP_evaluate_TP,STP_evaluate_TN,STP_evaluate_FP,STP_evaluate_FN)
+    print("SP>>>",SP_label_sum,SP_evaluate_TP,SP_evaluate_TN,SP_evaluate_FP,SP_evaluate_FN)
 
 
-def numTohexlst(num):
-    str = ''
-    while num > 0:
-        str='0123456789ABCDEF'[num%16]+str
-        num=(num-num%16)//16
-    l = ['0' for i in range(64-len(str))]
-    l += list(str)
-    return l
+def cleanAll():
 
-def hexlstTonum(t):
-    s = ''
-    for i in t:
-        s += i
-    odata = 0
-    su =s.upper()
-    for c in su:
-        tmp=ord(c)
-        if tmp <= ord('9') :
-            odata = odata << 4
-            odata += tmp - ord('0')
-        elif ord('A') <= tmp <= ord('F'):
-            odata = odata << 4
-            odata += tmp - ord('A') + 10
-    return odata
+    if os.path.exists(bin_full):
+        shutil.rmtree(bin_full)
+    os.mkdir(bin_full)
+    if os.path.exists(bin_creation):
+        shutil.rmtree(bin_creation)
+    os.mkdir(bin_creation)
+    if os.path.exists(bin_run):
+        shutil.rmtree(bin_run)
+    os.mkdir(bin_run)
+    if os.path.exists(opcodes_runtime):
+        shutil.rmtree(opcodes_runtime)
+    os.mkdir(opcodes_runtime)
+    if os.path.exists(opcodes_creation):
+        shutil.rmtree(opcodes_creation)
+    os.mkdir(opcodes_creation)
 
-def initDfs_graph():
-    for block in blocks:
-        graph_dict[block.get_start_address()] = set()
-        for i in edges:
-            if list(i.keys())[0] == block.get_start_address():
-                graph_dict[block.get_start_address()].add(list(i.values())[0])
+def cleanLog():
+    with open("./error.log",'w') as f:
+        f.flush()
+        f.close()
 
-def get_potential_path(tag):
-    potential_path = set()
-    s = [tag]
-    while s:       
-        vertex = s.pop()   
-        if vertex not in potential_path:
-            potential_path.add(vertex)
-            s.extend(graph_dict[vertex] - potential_path)
-    potential_path.remove(tag)
-    return potential_path
+def write_msg(msg):
+    with open("./error.log",'a') as f:
+        f.write(msg)
+        f.write('\n')
+        f.close()
+def run():
 
-stack = []
-construct_cfg()
-symbolic_exec(0,stack)
-initDfs_graph()
-check_SSP()
-#check_STP()
-# check_SP()
-# check_TS()
-visual_graph()
+    start = time.time()
+
+    cleanAll()
+
+    cleanLog()
+
+    processLabel()
+
+    handleLabel()
+
+    print_res()
+
+    end = time.time()
+
+    print(f"running time: {end - start} s")
+
+cleanAll()

@@ -2,7 +2,7 @@ import solcx
 import re
 import os
 import json
-from contract import contract
+import contract
 def get_all_contracts():
     contracts = []
     with open("./0/labeled.txt", encoding='utf-8') as f:

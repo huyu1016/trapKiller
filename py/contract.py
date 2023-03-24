@@ -14,6 +14,8 @@ call_data_load = "0x000000000000000000000000000000000000000000000000000000000000
 
 call_data_address = "0x0000000000000000000000009bbfed6889322e016e0a02ee459d306fc19545d8"
 
+gas = "0x1b0a39"
+
 creation_path = "./opcodes-creation/"
 
 creation_postfix = ".opcodes-creation"
@@ -22,6 +24,17 @@ run_path = "./opcodes-runtime/"
 
 run_postfix = ".opcodes-runtime"
 
+
+global_state = {
+    'coinbase' : '0x0000000000000000000000000000000000000000',
+    'difficulty' : '0x3f72e8e1ba28',
+    'gaslimit' : '20254a',
+    'timestamp' : '0x641c15d7',
+    'number' : '0x0',
+    'gasprice' : '0x1',
+    'blockhash' : '0x29045A592007D0C246EF02C2223570DA9522D0CF0F73282C79A1BC8F0BB2C238',
+    'origin' : '0xbe862ad9abfe6f22bcb087716c7d89a26051f74c'
+}
 class contract:
 
     def __init__(self, name):
@@ -63,13 +76,13 @@ class contract:
         self.STP = False
 
         self.TS = False
-
-        #preprocess
-        self.process()
-        #check
-        self.check()
-        #print
-        self.print_check_msg()
+        try:
+            #preprocess
+            self.process()
+            #check
+            self.check()
+        except:
+            self.write_msg("error   " + self.name)
 
     def process(self):
         c_path = creation_path + self.name + creation_postfix
@@ -285,12 +298,13 @@ class contract:
                     target = int(stack.pop(0),16)
                     if not self.visited.__contains__(target):
                         blockE = self.get_block(target,ctag)
-                        block.set_jump_to(target)
-                        edge_info = {}
-                        edge_info[block.get_start_address()] = blockE.get_start_address()
-                        edges.append(edge_info)
-                        stackNext = stack.copy()
-                        self.symbolic_exec(target,stackNext,op_dict,value_dict,edges,ctag)
+                        if  blockE:
+                            block.set_jump_to(target)
+                            edge_info = {}
+                            edge_info[block.get_start_address()] = blockE.get_start_address()
+                            edges.append(edge_info)
+                            stackNext = stack.copy()
+                            self.symbolic_exec(target,stackNext,op_dict,value_dict,edges,ctag)
                     ins = ins + 1
             elif op_code == "RETURN":
                 if len(stack) > 1:
@@ -310,6 +324,12 @@ class contract:
                     right = stack.pop(0)
                     res = cal.compute_GT(left,right)
                     stack.insert(0,res)
+                ins = ins + 1
+            elif op_code == "SGT":
+                left = stack.pop(0)
+                right = stack.pop(0)
+                res = cal.compute_SGT(left,right)
+                stack.insert(0,res)
                 ins = ins + 1
             elif op_code == "ISZERO":
                 if len(stack) > 0:
@@ -336,6 +356,12 @@ class contract:
                 dividend = stack.pop(0)
                 divisor = stack.pop(0)
                 res = cal.compute_DIV(dividend,divisor)
+                stack.insert(0, res)
+                ins = ins + 1
+            elif op_code == "SDIV":
+                dividend = stack.pop(0)
+                divisor = stack.pop(0)
+                res = cal.compute_SDIV(dividend,divisor)
                 stack.insert(0, res)
                 ins = ins + 1
             elif op_code == "NOT":
@@ -372,9 +398,26 @@ class contract:
                 stack.pop(0)
                 stack.pop(0)
                 ins = ins + 1
+            elif op_code == "ORIGIN":
+                stack.insert(0, global_state['origin'])
+                ins = ins + 1
+            elif op_code == "CODESIZE":
+                file_path = "./bin-full/" + self.name + ".bin"
+                with open(file_path,'r') as temp:
+                    lenthOfFile = len(temp.read())
+                    stack.insert(0,hex(lenthOfFile))
+                    temp.close()
+                ins = ins + 1
+            elif op_code == "GAS":
+                stack.insert(0,gas)
+                ins = ins + 1
+            elif op_code == "EXTCODESIZE":
+                address = stack.pop(0)
+                stack.insert(0,"0x5020")
+                ins = ins + 1
             elif op_code == "MSTORE":
                 if len(stack) > 1:
-                    offset = int(stack.pop(0),16)
+                    offset = stack.pop(0)
                     value_hex = stack.pop(0)
                     # 将value_hex转为str，并且补全至64位，高位补0，转list
                     # memory[offset:offset+32] = value
@@ -386,16 +429,78 @@ class contract:
                     # for i in range(math.ceil(len(memory)/64) * 64 - len(memory)):
                     #     memory.append('0')
                     ins = ins + 1
+            elif op_code =="MSTORE8":
+                offset = stack.pop(0)
+                value_hex = stack.pop(0)
+                    # 将value_hex转为str，并且补全至64位，高位补0，转list
+                    # memory[offset:offset+32] = value
+                    # for i in range(offset * 2, offset * 2 + 64):
+                    #     if i < len(memory):
+                    #         memory[i] = value_hex[i - offset * 2]
+                    #     else:
+                    #         memory.append(value_hex[i - offset * 2])
+                    # for i in range(math.ceil(len(memory)/64) * 64 - len(memory)):
+                    #     memory.append('0')
+                ins = ins + 1
             elif op_code == "MLOAD":
                 if len(stack) > 0:
                     offset = int(stack.pop(0),16)
                     # value_hex = memory[offset * 2:offset * 2 + 64]
                     stack.insert(0, "0x0")
                     ins = ins + 1
+            elif op_code == "CALLDATACOPY":
+                if len(stack) > 2:
+                    stack.pop(0)
+                    stack.pop(0)
+                    stack.pop(0)
+                ins = ins + 1
+            elif op_code == "GASPRICE":
+                stack.insert(0,global_state['gasprice'])
+                ins = ins + 1
+            elif op_code == "BLOCKHASH":
+                blocknumber = stack.pop(0)
+                stack.insert(0,global_state['blockhash'])
+                ins = ins + 1
+            elif op_code == "COINBASE":
+                stack.insert(0,global_state['coinbase'])
+                ins = ins + 1
+            elif op_code == "NUMBER":
+                stack.insert(0,global_state['number'])
+                ins = ins + 1
+            elif op_code == "DIFFICULTY":
+                stack.insert(0,global_state['difficulty'])
+                ins = ins + 1
+            elif op_code == "GASLIMIT":
+                stack.insert(0,global_state['gaslimit'])
+                ins = ins + 1
             elif op_code == "SELFDESTRUCT":
                 if len(stack) > 0:
                     addr = stack.pop(0)
                     ins = ins + 1
+            elif op_code == "MOD":
+                mod1 = stack.pop(0)
+                mod2 = stack.pop(0)
+                res = cal.compute_MOD(mod1,mod2)
+                stack.insert(0,res)
+                ins = ins + 1
+            elif op_code == "XOR":
+                a1 = stack.pop(0)
+                a2 = stack.pop(0)
+                res = cal.compute_XOR(a1,a2)
+                stack.insert(0,res)
+                ins = ins + 1
+            elif op_code == "BYTE":
+                offset = stack.pop(0)
+                value = stack.pop(0)
+                res = cal.compute_BYTE(offset,value)
+                stack.insert(0,res)
+                ins = ins + 1
+            elif op_code == "CREATE":
+                stack.pop(0)
+                stack.pop(0)
+                stack.pop(0)
+                stack.insert(0,"0x0")
+                ins = ins + 1
             elif op_code == "SSTORE":
                 if len(stack) > 1:
                     key = stack.pop(0)
@@ -434,10 +539,23 @@ class contract:
             elif op_code == "CALLVALUE":
                 stack.insert(0,"0x0")
                 ins = ins + 1
+            elif op_code in ("DELEGATECALL", "STATICCALL"):
+                if len(stack) > 5:
+                    ins = ins + 1
+                    stack.pop(0)
+                    recipient = stack.pop(0)
+                    stack.pop(0)
+                    stack.pop(0)
+                    stack.pop(0)
+                    stack.pop(0)
+                    stack.insert(0, "0x1")
             elif op_code == "CODECOPY":
                 mem_location = stack.pop(0)
                 code_from = stack.pop(0)
                 no_bytes = stack.pop(0)
+                ins = ins + 1
+            elif op_code == "TIMESTAMP":
+                stack.insert(0,global_state['timestamp'])
                 ins = ins + 1
             elif op_code == "STOP":
                 ins = ins + 1
@@ -454,19 +572,21 @@ class contract:
                     flag = int(stack.pop(0),16)
                     if not self.visited.__contains__(target):
                         blockE = self.get_block(target,ctag)
-                        block.set_jump_to(target)
-                        edge_info = {}
-                        edge_info[block.get_start_address()] = blockE.get_start_address()
-                        edges.append(edge_info)
-                        stackNext = stack.copy()
-                        self.symbolic_exec(target,stackNext,op_dict,value_dict,edges,ctag)
+                        if blockE: 
+                            block.set_jump_to(target)
+                            edge_info = {}
+                            edge_info[block.get_start_address()] = blockE.get_start_address()
+                            edges.append(edge_info)
+                            stackNext = stack.copy()
+                            self.symbolic_exec(target,stackNext,op_dict,value_dict,edges,ctag)
                     fall = block.get_fall_to()
                     if not self.visited.__contains__(fall):
                         stackNext = stack.copy()
                         self.symbolic_exec(fall,stackNext,op_dict,value_dict,edges,ctag)
                 ins = ins + 1
             else:
-                print("missing opcode>>>>>>>",op_code)
+                msg = "missing opcode>>>>>>>  " + op_code + "  " + self.name
+                self.write_msg(msg)
                 ins = ins + 1
     def get_block(self,tag,ctag):
         if ctag:
@@ -644,6 +764,8 @@ class contract:
                 if op_code != "CALL":
                     continue
                 k = j + 6
+                if k >= insList.__len__():
+                    return False
                 op_code_a = self.op_dict_r[insList[k]]
                 if op_code_a != "ISZERO":
                     if self.check_SSP(block_r,False):
@@ -660,6 +782,11 @@ class contract:
                 if list(i.keys())[0] == block.get_start_address():
                     self.graph_dict[block.get_start_address()].add(list(i.values())[0])
 
+    def write_msg(self,msg):
+        with open("./error.log",'a') as f:
+            f.write(msg)
+            f.write('\n')
+            f.close()
 
     def get_potential_path(self,tag):
         potential_path = set()
@@ -679,6 +806,18 @@ class contract:
         print("STP>>>>>>",self.STP)
         print("TS>>>>>>",self.TS)
 
+    def get_SP(self):
+        return self.SP
+    
+    def get_SSP(self):
+        return self.SSP
+    
+    def get_STP(self):
+        return self.STP
+    
+    def get_TS(self):
+        return self.TS
+    
     # print check units
     def print_checkunits(self):
         print("creation checkunits >>>>>>>>")
@@ -689,10 +828,9 @@ class contract:
         for i, block_r in enumerate(self.blocks_r):
             for j, check_unit_r in enumerate(block_r.get_checkUnits()):
                 check_unit_r.print_data()
-
-
-contract1 = contract("TS1")
-
-# contract1.visual_graph_c()
-contract1.visual_graph_r()
- 
+    def __del__(self):
+        return
+    
+# contractTest = contract("FlatPricingExt")
+    
+    
