@@ -1,4 +1,3 @@
-import math
 UNSIGNED_BOUND_NUMBER = 2**256 - 1
 UNSIGNED_MOD_NUMBER = 2**256
 
@@ -69,8 +68,8 @@ def compute_SDIV(a1,a2):
     elif a1_c == -2**255 and a2_c == -1:
         res_c = -2**255
     else:
-        sign = -1 if (a1_c / a1_c) < 0 else 1
-        res_c = sign * ( abs(a1_c) / abs(a2_c) )
+        sign = -1 if (a1_c / a2_c) < 0 else 1
+        res_c = int(sign * ( abs(a1_c) / abs(a2_c) ))
     return hex(res_c)
 
 def compute_BYTE(a1,a2):

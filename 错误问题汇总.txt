@@ -1,0 +1,9 @@
+TS错误问题汇总
+FN
+1.0x19b10788d9e048d8f2e63890fca5c0b518fd325b,CryptoTrader 0x0a5155ad298ccfd1610a00ed75457eb2d8b0c701,Oasis 0x229f07c5df0d19919185dd08b61dd9a26151ddfe,CentraSale等 send之后并未进行存储操作 是否定义为TS
+
+TP
+1.0x1d2b42b3531fad9e544dd4288b788cacc898d555,DCCToken   存在一些孤立块 本身是不可达的  修复方式：去掉孤立块
+
+
+主要问题 CFG 断流 没有考虑 不同块可能JUMP到同一个块 此时stack状态不同

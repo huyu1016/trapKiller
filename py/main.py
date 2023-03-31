@@ -199,6 +199,7 @@ def handleLabel():
 
         contract_anlysis = contract(labelUnit.getMainContractName())
         
+        # contract_anlysis.visual_graph_r()
         contract_sum = contract_sum + 1
 
         handleFlagTS(labelUnit.getLabelTS(),contract_anlysis.get_TS(),labelUnit.getFileName())

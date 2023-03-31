@@ -59,7 +59,7 @@ class contract:
 
         self.edges_r = []
         
-        self.visited = {}
+        self.visited = []
         
         self.stack = []
 
@@ -83,7 +83,7 @@ class contract:
             self.check()
         except:
             self.write_msg("error  "+ self.name)
-    
+
 
     def process(self):
         c_path = creation_path + self.name + creation_postfix
@@ -187,12 +187,13 @@ class contract:
 
     def symbolic_exec(self,tag,stack,op_dict,value_dict,edges,ctag):
 
-        if self.visited.__contains__(tag):
-            return
+        # if self.isVisited(tag,stack):
+            # return
+        
         block = self.get_block(tag,ctag)
         if not block:
             return
-        self.visited[tag] = True
+        # self.visitBlock(tag,stack)
         for i,ins in enumerate(block.get_instructions()):
             if not op_dict.__contains__(ins):
                 ins = ins + 1
@@ -297,15 +298,15 @@ class contract:
             elif op_code == "JUMP":
                 if len(stack) > 1:
                     target = int(stack.pop(0),16)
-                    if not self.visited.__contains__(target):
-                        blockE = self.get_block(target,ctag)
-                        if  blockE:
-                            block.set_jump_to(target)
+                    blockE = self.get_block(target,ctag)
+                    if  blockE:
+                        if  not block.get_jump_to().__contains__(target):
+                            block.add_jump_to(target)
                             edge_info = {}
                             edge_info[block.get_start_address()] = blockE.get_start_address()
                             edges.append(edge_info)
-                            stackNext = stack.copy()
-                            self.symbolic_exec(target,stackNext,op_dict,value_dict,edges,ctag)
+                    stackNext = stack.copy()
+                    self.symbolic_exec(target,stackNext,op_dict,value_dict,edges,ctag)
                     ins = ins + 1
             elif op_code == "RETURN":
                 if len(stack) > 1:
@@ -571,19 +572,19 @@ class contract:
                 if len(stack) > 1:
                     target = int(stack.pop(0),16)
                     flag = int(stack.pop(0),16)
-                    if not self.visited.__contains__(target):
-                        blockE = self.get_block(target,ctag)
-                        if blockE: 
-                            block.set_jump_to(target)
+                    blockE = self.get_block(target,ctag)
+                    if blockE: 
+                        if not block.get_jump_to().__contains__(target):
                             edge_info = {}
                             edge_info[block.get_start_address()] = blockE.get_start_address()
                             edges.append(edge_info)
-                            stackNext = stack.copy()
-                            self.symbolic_exec(target,stackNext,op_dict,value_dict,edges,ctag)
+
+                    stackNext = stack.copy()
+                    self.symbolic_exec(target,stackNext,op_dict,value_dict,edges,ctag)
                     fall = block.get_fall_to()
-                    if not self.visited.__contains__(fall):
-                        stackNext = stack.copy()
-                        self.symbolic_exec(fall,stackNext,op_dict,value_dict,edges,ctag)
+
+                    stackNext = stack.copy()
+                    self.symbolic_exec(fall,stackNext,op_dict,value_dict,edges,ctag)
                 ins = ins + 1
             else:
                 msg = "missing opcode>>>>>>>  " + op_code + "  " + self.name
@@ -598,6 +599,7 @@ class contract:
             for i, block in enumerate(self.blocks_r):
                 if block.get_start_address() == tag:
                     return block
+        return False
                 
     def visual_graph_c(self):
         G_c = nx.Graph()
@@ -610,15 +612,30 @@ class contract:
         nx.draw(G_c, with_labels=True)
         plt.show()
 
+    def visitBlock(self,tag,stack):
+        visitLog = {}
+        visitLog[tag] = stack.copy()
+        self.visited.append(visitLog)
+
+    def isVisited(self,tag,stack):
+        tempLog = {}
+        tempLog[tag] = stack.copy()
+        for _,visitLog in enumerate(self.visited):
+            if tempLog == visitLog:
+                return True
+        return False
+
     def visual_graph_r(self):
-        G_c = nx.Graph()
+        G_c = nx.DiGraph()
         for i, block in enumerate(self.blocks_r):
             tag = block.get_start_address()
             G_c.add_node(tag)
         for j,edge in enumerate(self.edges_r):
             for frome in edge:
                 G_c.add_edge(frome,edge[frome])
+        print(self.edges_r)
         nx.draw(G_c, with_labels=True)
+        # nx.draw_networkx(G_c,pos=nx.spring_layout(G_c),arrows=True)
         plt.show()
 
     def check(self):
@@ -626,6 +643,8 @@ class contract:
         if self.check_pre():
             for i, block_r in enumerate(self.blocks_r):
                 if not self.check_privilege(block_r):
+                    continue
+                if self.check_isolate(block_r):
                     continue
                 self.check_SSP(block_r,True)
                 self.check_SP(block_r)
@@ -758,23 +777,36 @@ class contract:
 
     def check_TS(self):
         for i, block_r in enumerate(self.blocks_r):
+            if self.check_isolate(block_r):
+                continue
             insList = block_r.get_instructions()
             for j, ins in enumerate(insList):
                 op_code = self.op_dict_r[ins]
                 if op_code != "CALL":
                     continue
-                k = j + 6
-                if k >= insList.__len__():
-                    return False
-                op_code_a = self.op_dict_r[insList[k]]
-                if op_code_a != "ISZERO":
-                    if self.check_SSP(block_r,False):
-                        self.TS = True
-                        return True
+                if not self.check_sendIns(insList,j):
+                    continue
+                if self.check_SSP(block_r,False):
+                    self.TS = True
+                    return True
                 else:
                     return False
         return False
-    
+    def check_sendIns(self,insList,start):
+        if start + 6 >= insList.__len__():
+            return False
+        pattern=["CALL","SWAP4","POP","POP","POP","POP"]
+        for num in range(0,6):
+            if pattern[num] != self.op_dict_r[insList[start + num]]:
+                return False
+        if self.op_dict_r[insList[start + 6]] == "ISZERO":
+            return False
+        return True
+        
+    def check_isolate(self,block):
+        if not hasattr(block,'fall_to') and block.get_jump_to().__len__() == 0:
+            return True
+        return False
     def initDfs_graph(self):
         for block in self.blocks_r:
             self.graph_dict[block.get_start_address()] = set()
