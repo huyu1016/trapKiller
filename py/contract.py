@@ -529,15 +529,19 @@ class contract:
                 if len(stack) > 0:
                     outgas = stack.pop(0)
                     recipient = stack.pop(0)
-                    transfer_amount = stack.pop(0)
+                    transfer_amount = int(stack.pop(0),16)
                     start_data_input = stack.pop(0)
                     size_data_input = stack.pop(0)
                     start_data_output = stack.pop(0)
                     size_data_ouput = stack.pop(0)
                     check_unit = CheckUnit(op_code,ins)
                     check_unit.set_call_return("0x1")
+                    if transfer_amount != 0:
+                        check_unit.set_call_send(True)
+                    else:
+                        check_unit.set_call_send(False)
                     block.add_checkUnit(check_unit)
-                    stack.insert(0,"0x1")
+                    stack.insert(0,"CALL_RES")
             elif op_code == "CALLVALUE":
                 stack.insert(0,"0x0")
                 ins = ins + 1
@@ -675,6 +679,10 @@ class contract:
                     return True
         return False
     
+    def get_checkunit(block,ins):
+          for i,checkunit in enumerate(block.get_checkUnits()):
+                if checkunit.get_unit_ins() == ins:
+                    return checkunit
     # check the run block has the owner == msg.sender condition
     def check_privilege(self,block):
         
@@ -775,23 +783,40 @@ class contract:
                     return True       
         return False
 
+    def ischeck_call(self,block,cins):
+        insList = block.get_instructions()
+        for k, ins1 in enumerate(insList): 
+            if k <=  cins :
+                continue
+            if self.op_dict_r[ins1] == "ISZERO":
+                zeor_checkUnit = self.get_checkunit(block,ins1)
+                if zeor_checkUnit.get_call_return() == "CALL_RES":
+                    return True
+                else:
+                    continue
+        return False
+
     def check_TS(self):
         for i, block_r in enumerate(self.blocks_r):
-            if self.check_isolate(block_r):
-                continue
             insList = block_r.get_instructions()
             for j, ins in enumerate(insList):
                 op_code = self.op_dict_r[ins]
                 if op_code != "CALL":
                     continue
-                if not self.check_sendIns(insList,j):
+                checkUnit = self.get_checkunit(block_r,ins)
+                if not checkUnit.get_call_send():
+                    continue
+                # if not self.check_sendIns(insList,j):
+                #     continue
+                if self.ischeck_call(block_r,ins):
                     continue
                 if self.check_SSP(block_r,False):
                     self.TS = True
                     return True
                 else:
-                    return False
+                    continue
         return False
+    
     def check_sendIns(self,insList,start):
         if start + 6 >= insList.__len__():
             return False
@@ -801,7 +826,10 @@ class contract:
                 return False
         if self.op_dict_r[insList[start + 6]] == "ISZERO":
             return False
-        return True
+        elif self.op_dict_r[insList[start + 6]] == "POP":
+            return True
+        else:
+            return False
         
     def check_isolate(self,block):
         if not hasattr(block,'fall_to') and block.get_jump_to().__len__() == 0:
@@ -864,5 +892,4 @@ class contract:
         return
     
 # contractTest = contract("FlatPricingExt")
-    
     

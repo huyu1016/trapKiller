@@ -43,11 +43,11 @@ SP_evaluate_FN = 0
 
 
 def processLabel():
-    # with open("./labeledCorrect.txt", encoding='utf-8') as f:
-    with open("./labeled.txt", encoding='utf-8') as f:
+    with open("./labeledCorrect.txt", encoding='utf-8') as f:
+    # with open("./labeled.txt", encoding='utf-8') as f:
         contents = f.readlines()
         begin = 0
-        while(begin < contents.__len__()):
+    while(begin < contents.__len__()):
 
             main_line = begin 
             mainContent = contents[main_line].split('======')[1]
@@ -208,6 +208,7 @@ def handleLabel():
         handleFlagSP(labelUnit.getLabelSP(),contract_anlysis.get_SP(),labelUnit.getFileName())
 
         # contract_anlysis.visual_graph_r()
+    
         contract_anlysis.__del__()
 
 
@@ -367,5 +368,5 @@ def run():
 
     print(f"running time: {end - start} s")
 
-cleanAll()
-# run()
+# cleanAll()
+run()

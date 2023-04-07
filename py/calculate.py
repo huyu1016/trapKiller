@@ -2,6 +2,8 @@ UNSIGNED_BOUND_NUMBER = 2**256 - 1
 UNSIGNED_MOD_NUMBER = 2**256
 
 def compute(operator,*args):
+    if args[0] == "CALL_RES":
+       args[0] = "0x01"
     if operator == "EQ":
         return compute_EQ(args[0],args[1])
     elif operator == "EXP":

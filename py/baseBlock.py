@@ -22,16 +22,12 @@ class BasicBlock:
         return self.jump_to
     def get_instructions(self):
         return self.instructions
-    
     def add_checkUnit(self,checkUnit):
-        self.checkUnits.append(checkUnit)
-    
+        self.checkUnits.append(checkUnit)    
     def get_checkUnits(self):
         return self.checkUnits
-
     def set_block_type(self, type):
         self.type = type
-
     def get_block_type(self):
         return self.type
     def display(self):
