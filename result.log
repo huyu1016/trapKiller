@@ -5,16 +5,22 @@ STP>>> 86 57 321 86 29
 SP>>> 29 10 464 0 19
 running time: 185.54953622817993 s
 
-
-FN
-0xc2bb52457d81fbd223cc92b44cd372d36b338a10 标记错误 合约没有调用send函数
-0x2abf00b596f4cb10384654dcd76253b3140d35ff 标记错误 合约没有调用send函数
-0xd939cdb6b110c96b1758adab5cab1e836ddbdd2b 标记错误 合约没有调用send函数
-0x69fd0e5d0a93bf8bac02c154d343a8e3709adabf 标记错误 应该属于TS
-
-FP
-0x4eb3ce14fda3a874ecad0e9ad988258c827bae82 
-0x37512eec5e3ee7843a1ab59ef99fb52589037774 
-0x1c1de57cc864072f7eab381c4c06b14a6963dd4b 
+TS>>> 26 22 464 3 4
+SSP>>> 375 273 110 8 102
+STP>>> 86 63 321 86 23
+SP>>> 29 17 450 14 12
+running time: 196.64439153671265 s
 
 
+目前断流原因总结
+
+1.编译器版本问题 evm编译出来的字节码和remix的字节码有明显的区别(影响出现断流时候的对比调试)
+
+2.运行堆栈深度过高 超过了最大限制(模仿的oyente oyente 设置的最大访问深度为50)
+    depth max BLTTokenSale
+    depth max TEFoodsCrowdsale
+    depth max OMToken
+    depth max BulleonCrowdsale
+    depth max JubsICO
+    ....
+3.代码复杂度过高：如果代码非常复杂，核心环节 例如包含大量的循环、嵌套等结构，就有可能导致CFG的断流，而且观察难度非常大
