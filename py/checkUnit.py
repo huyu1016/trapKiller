@@ -14,10 +14,6 @@ class CheckUnit:
         self.call_return = call_return
     def get_call_return(self):
         return self.call_return
-    def set_call_send(self,flag):
-        self.sendflag = flag
-    def get_call_send(self,flag):
-        return self.sendflag
     def get_sstore_value(self):
         return self.store_value
     def get_sstore_key(self):

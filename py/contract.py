@@ -7,6 +7,8 @@ from baseBlock import BasicBlock
 from checkUnit import CheckUnit
 
 caller_address = "0x0000000000000000000000005b38da6a701c568545dcfcb03fcb875f56beddc4"
+
+max_depth = 50
                 
 call_data_size = "0x0000000000000000000000000000000000000000000000000000000000000024"
 
@@ -23,6 +25,7 @@ creation_postfix = ".opcodes-creation"
 run_path = "./opcodes-runtime/"
 
 run_postfix = ".opcodes-runtime"
+
 
 
 global_state = {
@@ -76,6 +79,11 @@ class contract:
         self.STP = False
 
         self.TS = False
+
+        self.FT = False
+
+        self.depth = 0 
+
         try:
             #preprocess
             self.process()
@@ -92,6 +100,7 @@ class contract:
         self.symbolic_exec(0,self.stack,self.op_dict_c,self.value_dict_c,self.edges_c,True)
         self.visited.clear()
         self.stack.clear()
+        self.depth = 0
         self.construct_cfg(r_path,self.op_dict_r,self.value_dict_r,self.blocks_r,self.edges_r)
         self.symbolic_exec(0,self.stack,self.op_dict_r,self.value_dict_r,self.edges_r,False)
 
@@ -189,7 +198,10 @@ class contract:
 
         # if self.isVisited(tag,stack):
             # return
-        
+        self.depth = self.depth + 1
+        # if (self.depth > max_depth):
+        #     msg = "depth max " + self.name
+        #     self.write_msg(msg)
         block = self.get_block(tag,ctag)
         if not block:
             return
@@ -536,12 +548,8 @@ class contract:
                     size_data_ouput = stack.pop(0)
                     check_unit = CheckUnit(op_code,ins)
                     check_unit.set_call_return("0x1")
-                    if transfer_amount != 0:
-                        check_unit.set_call_send(True)
-                    else:
-                        check_unit.set_call_send(False)
                     block.add_checkUnit(check_unit)
-                    stack.insert(0,"CALL_RES")
+                    stack.insert(0,"0x1")
             elif op_code == "CALLVALUE":
                 stack.insert(0,"0x0")
                 ins = ins + 1
@@ -771,9 +779,10 @@ class contract:
         return False
     
     def check_SP(self,block):
-        potential_path = self.get_potential_path(block.get_start_address())
-        for k in potential_path:
-            block_k = self.get_block(k,False)
+        # potential_path = self.get_potential_path(block.get_start_address())
+        # for k in potential_path:
+        for k, block_k in enumerate(self.blocks_r):
+            # block_k = self.get_block(k,False)
             block_k_index = block_k.get_instructions()
             for i in block_k_index:
                 if self.op_dict_r[i] != "SELFDESTRUCT":
@@ -803,18 +812,19 @@ class contract:
                 op_code = self.op_dict_r[ins]
                 if op_code != "CALL":
                     continue
-                checkUnit = self.get_checkunit(block_r,ins)
-                if not checkUnit.get_call_send():
-                    continue
-                # if not self.check_sendIns(insList,j):
+                # checkUnit = self.get_checkunit(block_r,ins)
+                # if not checkUnit.get_call_send():
                 #     continue
-                if self.ischeck_call(block_r,ins):
+                if not self.check_sendIns(insList,j):
                     continue
-                if self.check_SSP(block_r,False):
-                    self.TS = True
-                    return True
-                else:
-                    continue
+                self.TS = True
+                # if self.ischeck_call(block_r,ins):
+                #     continue
+                # if self.check_SSP(block_r,False):
+                #     self.TS = True
+                #     return True
+                # else:
+                #     continue
         return False
     
     def check_sendIns(self,insList,start):
@@ -829,7 +839,7 @@ class contract:
         elif self.op_dict_r[insList[start + 6]] == "POP":
             return True
         else:
-            return False
+            return True
         
     def check_isolate(self,block):
         if not hasattr(block,'fall_to') and block.get_jump_to().__len__() == 0:
@@ -877,6 +887,12 @@ class contract:
     
     def get_TS(self):
         return self.TS
+    
+    def set_FT(self,flag):
+        self.FT = flag
+
+    def get_FT(self):
+        return self.FT    
     
     # print check units
     def print_checkunits(self):
