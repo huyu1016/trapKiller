@@ -18,6 +18,21 @@ contract test is father{
    function withDrawEtherByOwner(address addr, uint amount) public payable onlyOwner 
    {
         addr.send(amount);
+
+        if (amount > 1)
+          addr.send(amount);
+
+     if (amount > 1){
+          addr.send(amount);
+     }
+
+     if (amount > 1){
+          addr.send(amount);
+     }else{
+          addr.send(1);
+     }
+
+
    }
 
 }
