@@ -48,8 +48,20 @@ def compute(operator,*args):
         return compute_SDIV(args[0],args[1])
     elif operator == "SGT":
         return compute_SGT(args[0],args[1])
-    
+    elif operator == "SIGNEXTEND":
+        return compute_SIGNEXTEND(args[0],args[1])
+    elif operator == "MULMOD":
+        return compute_MULMOD(args[0],args[1],args[2])
 
+def compute_MULMOD(a1,a2,a3):
+    a1_c =  int(a1,16)
+    a2_c =  int(a2,16)
+    a3_c =  int(a3,16)
+    if a3_c == 0:
+        res_c = 0
+    else:
+        res_c = (a1_c * a2_c) % a3_c
+    return hex(res_c)
 def compute_SGT(a1,a2):
     a1_c =  int(a1,16)
     a2_c = int(a2,16)
@@ -58,8 +70,18 @@ def compute_SGT(a1,a2):
     else:
         res_c = 0
     return hex(res_c)
-
-    
+def compute_SIGNEXTEND(a1,a2):
+    a1_c =  int(a1,16)
+    a2_c = int(a2,16)
+    if a1_c >= 32 or a1_c < 0:
+        res_c = a2_c
+    else:
+        signbit_index_from_right = 8 * a1_c + 7
+        if a2_c & (1 << signbit_index_from_right):
+            res_c = a2_c | (2 ** 256 - (1 << signbit_index_from_right))
+        else:
+            res_c = a2_c & ((1 << signbit_index_from_right) - 1 )
+    return hex(res_c)
 def compute_SDIV(a1,a2):
     a1_c =  int(a1,16)
     a2_c = int(a2,16)

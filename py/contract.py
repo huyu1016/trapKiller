@@ -8,7 +8,7 @@ from checkUnit import CheckUnit
 
 caller_address = "0x0000000000000000000000005b38da6a701c568545dcfcb03fcb875f56beddc4"
 
-max_depth = 50
+max_depth = 10000
                 
 call_data_size = "0x0000000000000000000000000000000000000000000000000000000000000024"
 
@@ -84,6 +84,8 @@ class contract:
 
         self.depth = 0 
 
+        self.overflow = False
+        
         try:
             #preprocess
             self.process()
@@ -199,9 +201,12 @@ class contract:
         # if self.isVisited(tag,stack):
             # return
         self.depth = self.depth + 1
-        # if (self.depth > max_depth):
-        #     msg = "depth max " + self.name
-        #     self.write_msg(msg)
+        if (self.depth > max_depth):
+            msg = "depth max " + self.name
+            # self.write_msg(msg)
+            if not self.overflow:
+                self.overflow = True
+            return
         block = self.get_block(tag,ctag)
         if not block:
             return
@@ -225,15 +230,44 @@ class contract:
                     stack.pop(0)
                     stack.insert(0, call_data_load)
                     ins = ins + 1
+                else:
+                    stack.clear()
             elif op_code == "POP":
                 if len(stack) > 0:
                     stack.pop(0)
                     ins = ins + 1
+                else:
+                    stack.clear()
             elif op_code == "CALLER":
                 stack.insert(0,caller_address)
                 check_unit = CheckUnit(op_code,ins)
                 check_unit.set_caller_address(caller_address)
                 block.add_checkUnit(check_unit)
+                ins = ins + 1
+            elif op_code == "CHAINID":
+                stack.insert(0,"0x1")
+                ins = ins + 1
+            elif op_code == "SIGNEXTEND":
+                if len(stack) > 1:
+                    first = stack.pop(0)
+                    second = stack.pop(0)
+                    res = cal.compute_SIGNEXTEND(first,second)
+                    stack.insert(0,res)
+                    ins = ins + 1
+                else:
+                    stack.clear()   
+            elif op_code == "MULMOD":
+                if len(stack) > 2:
+                    first = stack.pop(0)
+                    second = stack.pop(0)
+                    third = stack.pop(0)
+                    res = cal.compute_MULMOD(first,second,third)
+                    stack.insert(0,res)
+                    ins = ins + 1
+                else:
+                    stack.clear() 
+            elif op_code == "EXTCODEHASH":
+                # 可不实现
                 ins = ins + 1
             elif op_code == "EQ":
                 if len(stack) > 1:
@@ -245,6 +279,8 @@ class contract:
                     res = cal.compute_EQ(first,second)
                     stack.insert(0, res)
                     ins = ins + 1
+                else:
+                    stack.clear()
             elif op_code.startswith("DUP"):
                 str = re.search(r"\d+", op_code).group(0)
                 num = int(str)
@@ -258,6 +294,9 @@ class contract:
                 while num > 0:
                     stack.pop(0)
                     num = num - 1
+                ins = ins + 1
+            elif op_code == "SELFBALANCE":
+                stack.insert(0,"0x0")
                 ins = ins + 1
             elif op_code == "SUB":
                 if len(stack) > 1:
@@ -325,6 +364,15 @@ class contract:
                     stack.pop(0)
                     stack.pop(0)
                 ins = ins + 1
+            elif op_code == "CREATE2":
+                if len(stack) > 4:
+                    stack.pop(0)
+                    stack.pop(0)
+                    stack.pop(0)
+                    stack.pop(0)
+                else:
+                    stack.clear()
+                stack.insert(0,caller_address)
             elif op_code == "LT":
                 if len(stack) > 1:
                     left = stack.pop(0)
@@ -879,6 +927,9 @@ class contract:
     def get_SP(self):
         return self.SP
     
+    def get_overflow(self):
+        return self.overflow
+
     def get_SSP(self):
         return self.SSP
     

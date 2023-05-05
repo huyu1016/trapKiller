@@ -8,6 +8,7 @@ from contract import contract
 
 labels = []
 solFilePath = "./dataset/"
+# solFilePath = "./git-dataset/"
 binProcess = "./process/"
 astPath = "./ast/"
 bin_full = "./bin-full/"
