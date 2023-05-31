@@ -13,8 +13,6 @@ solFilePath = "./git-dataset/"
 
 solcVersionPath = "C:\\Users\\yafei\\.solcx\\"
 
-excelData = {}
-
 binProcess = "./process/"
 astPath = "./ast/"
 bin_full = "./bin-full/"
@@ -25,15 +23,15 @@ opcodes_runtime = "./opcodes-runtime/"
 opcodes_creation = "./opcodes-creation/"
 
 
-def getMainContractName(fileName):
-    command_json = "solc --ast-compact-json " + solFilePath + fileName + " -o " + astPath
-    os.system(command_json)
-    with open(astPath + fileName + "_json.ast", 'r', encoding='utf-8') as f:
-        contents = json.load(f)
+# def getMainContractName(fileName,file_path):
+#     command_json = "solc --ast-compact-json " + file_path + " -o " + astPath
+#     os.system(command_json)
+#     with open(astPath + fileName + "_json.ast", 'r', encoding='utf-8') as f:
+#         contents = json.load(f)
 
-def handleAst(fileName,mainContractName,contract,solcCmd,jsonChose):
+def handleAst(file_path,fileName,mainContractName,contract,solcCmd,jsonChose):
     
-    command_json = solcCmd + jsonChose + solFilePath + fileName + " -o " + astPath
+    command_json = solcCmd + jsonChose + file_path + " -o " + astPath
     os.system(command_json)
 
     if not os.path.isfile(astPath + fileName + "_json.ast"):
@@ -166,21 +164,17 @@ def getVersion(path):
     return "mismatch"
 
 def handle():
-    addressList = list()
-    mainContractList = list()
-    TSList = list()
-    SPList = list()
-    SSPList = list()
-    STPList = list()
-    FTList = list()
-    StackOverflowList = list()
     list_dirs = os.walk(solFilePath)
-    for _,_,files in list_dirs:
+    for root,_,files in list_dirs:
         for f in files:    
             str_list = f.split('_')
+            if str_list.__len__() < 2:
+                continue
             address = str_list[0]
             last_str = str_list[1].strip()
             mainContractName = last_str.split('.')[0].strip()
+
+            file_path = os.path.join(root,f)
 
             fileName = f
             fileFullName = mainContractName + ".bin"
@@ -189,14 +183,14 @@ def handle():
             opcodesRunName = mainContractName + ".opcodes-runtime"
             opcodesCreationName = mainContractName + ".opcodes-creation"
 
-            version = getVersion(solFilePath + fileName)
+            version = getVersion(file_path)
             if version == "mismatch":
                 write_msg("version not match"+fileName)
                 continue
             
             solcCmd = solcVersionPath + "solc-v" + version + "\\" + "solc.exe"
-            command_full = solcCmd + " --bin " + solFilePath + fileName + " -o " + binProcess
-            if not os.path.isfile(solFilePath + fileName):
+            command_full = solcCmd + " --bin " + file_path + " -o " + binProcess
+            if not os.path.isfile(file_path):
                 write_msg("no sol file")
                 continue
             
@@ -216,7 +210,7 @@ def handle():
 
             shutil.move(originName,bin_full)
 
-            command_run = solcCmd + " --bin-runtime " + solFilePath + fileName + " -o " + binProcess
+            command_run = solcCmd + " --bin-runtime " + file_path + " -o " + binProcess
             os.system(command_run)
             fileList = os.listdir(binProcess)
             for f_name in fileList:
@@ -262,38 +256,32 @@ def handle():
                 write_msg("low version " + fileName)
                 continue
                 
-            res = handleAst(fileName,mainContractName,contract_anlysis,solcCmd,jsonChose)
+            res = handleAst(file_path,fileName,mainContractName,contract_anlysis,solcCmd,jsonChose)
             if not res:
                 write_msg("ast error " + fileName)
                 continue
             
-            addressList.append(address)
-            mainContractList.append(mainContractName)
-            TSList.append(contract_anlysis.get_TS())
-            SPList.append(contract_anlysis.get_SP())
-            SSPList.append(contract_anlysis.get_SSP())
-            STPList.append(contract_anlysis.get_STP())
-            FTList.append(contract_anlysis.get_FT())
-            StackOverflowList.append(contract_anlysis.get_overflow())
-            contract_anlysis.__del__()
+            excelData = dict()
+            excelData['address'] = [address]
+            excelData['mainContract'] = [mainContractName]
+            excelData['TS'] = [contract_anlysis.get_TS()]
+            excelData['SP'] = [contract_anlysis.get_SP()]
+            excelData['SSP'] = [contract_anlysis.get_SSP()]
+            excelData['STP'] = [contract_anlysis.get_STP()]
+            excelData['FT'] = [contract_anlysis.get_FT()]
+            excelData['StackOverFlow'] = [contract_anlysis.get_overflow()]
+            
+            contract_anlysis.__del__()  
 
+            append_data = pd.DataFrame(excelData)
 
-    excelData['address'] = addressList
-    excelData['mainContract'] = mainContractList
-    excelData['TS'] = TSList
-    excelData['SP'] = SPList
-    excelData['SSP'] = SSPList
-    excelData['STP'] = STPList
-    excelData['FT'] = FTList
-    excelData['StackOverFlow'] = StackOverflowList
-
-    df = pd.DataFrame(excelData)
-
-    df.to_excel('output.xlsx', index=False)
+            df = pd.read_excel('output.xlsx')
+            df = pd.concat([df,append_data], ignore_index=True)
+            df.to_excel('output.xlsx', index=False)
 
 def libraryHandel(file_path):
 
-    with open(file_path,'r') as f:
+    with open(file_path,'r') as f: 
         str = f.read()
         res = re.search(r'(\_\_\.).*(\_\_)',str)
         if res:
@@ -329,8 +317,8 @@ def cleanAll():
         shutil.rmtree(astPath)
     os.mkdir(astPath)
 
-    if os.path.isfile("./output.xlsx"):
-        os.remove("./output.xlsx")
+    # if os.path.isfile("./output.xlsx"):
+    #     os.remove("./output.xlsx")
 
 def cleanLog():
     with open("./error.log",'w') as f:
@@ -351,7 +339,7 @@ def run():
 
     cleanLog()
 
-    # handle()
+    handle()
 
     end = time.time()
 
@@ -359,6 +347,7 @@ def run():
 
 
 run()
+
 
 # # cleanAll()
 

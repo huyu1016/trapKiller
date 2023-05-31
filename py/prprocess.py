@@ -4,7 +4,7 @@ from solcx import install_solc
 
 solFilePath = "./git-dataset/"
 
-solcVersionPath = "C:\\Users\\yafei\\.solcx"
+solcVersionPath = "C:\\Users\\18813\\Documents\\.solcx\\"
 
 list_dirs = os.walk(solFilePath)
 version_set = set()
@@ -21,9 +21,9 @@ def check_version(version):
     return False
 
 def preprocess():
-    for _,_,files in list_dirs:
+    for root,_,files in list_dirs:
         for f in files:
-            file_path = solFilePath + f
+            file_path = os.path.join(root,f)
             with open(file_path,'r',encoding='utf-8') as disasm_file:
                 while True:
                     line = disasm_file.readline().strip()
@@ -47,5 +47,8 @@ def preprocess():
             version = "0.4.25"
         if not check_version(version):
             print(version)
-            install_solc(version)
+            try:
+                install_solc(version)
+            except:
+                print("version")
 preprocess()
